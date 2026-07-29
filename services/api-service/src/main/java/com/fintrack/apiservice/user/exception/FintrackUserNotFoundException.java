@@ -1,4 +1,4 @@
-package com.fintrack.apiservice.common.exception;
+package com.fintrack.apiservice.user.exception;
 
 public class FintrackUserNotFoundException extends RuntimeException {
 
