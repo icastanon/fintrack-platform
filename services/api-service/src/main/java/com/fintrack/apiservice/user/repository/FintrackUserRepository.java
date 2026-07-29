@@ -1,6 +1,6 @@
 package com.fintrack.apiservice.user.repository;
 
-import com.fintrack.apiservice.user.domain.FintrackUser;
+import com.fintrack.apiservice.user.entity.FintrackUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

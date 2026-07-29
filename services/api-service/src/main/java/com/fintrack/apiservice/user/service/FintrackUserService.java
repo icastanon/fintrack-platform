@@ -1,7 +1,7 @@
 package com.fintrack.apiservice.user.service;
 
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
-import com.fintrack.apiservice.user.domain.FintrackUser;
+import com.fintrack.apiservice.user.entity.FintrackUser;
 import com.fintrack.apiservice.user.dto.FintrackUserCreateRequest;
 import com.fintrack.apiservice.user.dto.FintrackUserResponse;
 import com.fintrack.apiservice.user.dto.FintrackUserUpdateRequest;

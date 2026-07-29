@@ -1,4 +1,4 @@
-package com.fintrack.apiservice.user.domain;
+package com.fintrack.apiservice.user.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Table(name = "fintrack_user")
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @AllArgsConstructor
 public class FintrackUser {
 
@@ -27,6 +27,9 @@ public class FintrackUser {
 
     @Column(nullable = false, unique = true, length = 255)
     private String email;
+
+    @Column(name = "password_hash")
+    private String passwordHash;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
