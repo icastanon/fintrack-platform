@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# IntelliJ
+.idea/
+*.iml
+
+# Build output
+target/
+
+# Logs
+*.log
