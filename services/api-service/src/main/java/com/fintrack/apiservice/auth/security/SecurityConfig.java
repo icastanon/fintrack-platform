@@ -2,6 +2,7 @@ package com.fintrack.apiservice.auth.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -47,10 +48,19 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/auth/register",
-                                "/auth/login"
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/login",
+                                "/error"
                         ).permitAll()
-                        .anyRequest().authenticated()
+
+                        .requestMatchers("/api/v1/users/me")
+                        .authenticated()
+
+                        .requestMatchers("/api/v1/users", "/api/v1/users/**")
+                        .hasRole("ADMIN")
+
+                        .anyRequest()
+                        .authenticated()
                 )
 
                 .addFilterBefore(

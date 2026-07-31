@@ -5,6 +5,8 @@ import com.fintrack.apiservice.auth.dto.LoginRequest;
 import com.fintrack.apiservice.auth.dto.RegisterRequest;
 import com.fintrack.apiservice.auth.security.JwtService;
 import com.fintrack.apiservice.user.entity.FintrackUser;
+import com.fintrack.apiservice.user.entity.Role;
+import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
 import com.fintrack.apiservice.user.mapper.FintrackUserMapper;
 import com.fintrack.apiservice.user.repository.FintrackUserRepository;
@@ -45,7 +47,12 @@ public class AuthService {
             throw new UsernameAlreadyExistsException(request.getUsername());
         }
 
+        if(userRepository.existsByEmail(request.getEmail())){
+            throw new EmailAlreadyExistsException(request.getEmail());
+        }
+
         FintrackUser user = mapper.toEntity(request);
+        user.setRole(Role.USER);
 
         user.setPasswordHash(
                 passwordEncoder.encode(request.getPassword())

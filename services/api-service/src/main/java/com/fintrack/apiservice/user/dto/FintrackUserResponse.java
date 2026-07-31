@@ -1,5 +1,6 @@
 package com.fintrack.apiservice.user.dto;
 
+import com.fintrack.apiservice.user.entity.Role;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -14,6 +15,8 @@ public class FintrackUserResponse {
     private String username;
 
     private String email;
+
+    private Role role;
 
     private LocalDateTime createdAt;
 }

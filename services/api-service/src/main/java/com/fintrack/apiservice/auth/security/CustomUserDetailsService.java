@@ -32,7 +32,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         return User.builder()
                 .username(user.getUsername())
                 .password(user.getPasswordHash())
-                .roles("USER")
+                .roles(user.getRole().name())
                 .build();
     }
 }

@@ -1,18 +1,18 @@
 package com.fintrack.apiservice.user.controller;
 
-import com.fintrack.apiservice.user.dto.FintrackUserCreateRequest;
+import com.fintrack.apiservice.auth.dto.FintrackUserProfileUpdateRequest;
 import com.fintrack.apiservice.user.dto.FintrackUserResponse;
 import com.fintrack.apiservice.user.dto.FintrackUserUpdateRequest;
 import com.fintrack.apiservice.user.service.FintrackUserService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/v1/users")
 public class FintrackUserController {
 
     private final FintrackUserService service;
@@ -41,17 +41,14 @@ public class FintrackUserController {
         );
     }
 
-
-    @PostMapping
-    public ResponseEntity<FintrackUserResponse> createUser(
-            @Valid @RequestBody FintrackUserCreateRequest request
+    @GetMapping("/me")
+    public ResponseEntity<FintrackUserResponse> getCurrentUser(
+            Authentication authentication
     ) {
+        FintrackUserResponse response =
+                service.getUserByUsername(authentication.getName());
 
-        FintrackUserResponse response = service.createUser(request);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(response);
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{id}")
@@ -63,6 +60,21 @@ public class FintrackUserController {
         return ResponseEntity.ok(
                 service.updateUser(id, request)
         );
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<FintrackUserResponse> updateCurrentUser(
+            Authentication authentication,
+            @Valid @RequestBody
+            FintrackUserProfileUpdateRequest request
+    ) {
+        FintrackUserResponse response =
+                service.updateCurrentUser(
+                        authentication.getName(),
+                        request
+                );
+
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")

@@ -1,6 +1,7 @@
 package com.fintrack.apiservice.common.exception;
 
 import com.fintrack.apiservice.common.dto.ErrorResponse;
+import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
 import org.springframework.http.HttpStatus;
@@ -78,6 +79,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(response);
+    }
+
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleEmailAlreadyExists(
+            EmailAlreadyExistsException exception
+    ) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                exception.getMessage(),
+                null
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(errorResponse);
     }
 
     @ExceptionHandler(BadCredentialsException.class)

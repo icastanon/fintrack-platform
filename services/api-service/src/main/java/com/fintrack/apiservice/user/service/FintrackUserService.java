@@ -1,8 +1,9 @@
 package com.fintrack.apiservice.user.service;
 
+import com.fintrack.apiservice.auth.dto.FintrackUserProfileUpdateRequest;
+import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
 import com.fintrack.apiservice.user.entity.FintrackUser;
-import com.fintrack.apiservice.user.dto.FintrackUserCreateRequest;
 import com.fintrack.apiservice.user.dto.FintrackUserResponse;
 import com.fintrack.apiservice.user.dto.FintrackUserUpdateRequest;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
@@ -29,19 +30,6 @@ public class FintrackUserService {
         this.mapper = mapper;
     }
 
-    @Transactional
-    public FintrackUserResponse createUser(FintrackUserCreateRequest request) {
-        if (repository.existsByUsername(request.getUsername())) {
-            throw new UsernameAlreadyExistsException(request.getUsername());
-        }
-
-        FintrackUser user = mapper.toEntity(request);
-
-        FintrackUser savedUser = repository.save(user);
-
-        return mapper.toResponse(savedUser);
-    }
-
     public List<FintrackUserResponse> getAllUsers() {
         return repository.findAll()
                 .stream()
@@ -53,6 +41,15 @@ public class FintrackUserService {
 
         FintrackUser user = repository.findById(id)
                 .orElseThrow(() -> new FintrackUserNotFoundException(id));
+
+        return mapper.toResponse(user);
+    }
+
+    public FintrackUserResponse getUserByUsername(String username) {
+        FintrackUser user = repository.findByUsername(username)
+                .orElseThrow(() ->
+                        new FintrackUserNotFoundException(username)
+                );
 
         return mapper.toResponse(user);
     }
@@ -73,6 +70,31 @@ public class FintrackUserService {
         }
 
         user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+
+        return mapper.toResponse(user);
+    }
+
+    @Transactional
+    public FintrackUserResponse updateCurrentUser(
+            String currentUsername,
+            FintrackUserProfileUpdateRequest request
+    ) {
+        FintrackUser user = repository.findByUsername(currentUsername)
+                .orElseThrow(() ->
+                        new FintrackUserNotFoundException(currentUsername)
+                );
+
+        repository.findByEmail(request.getEmail())
+                .filter(existingUser ->
+                        !existingUser.getId().equals(user.getId())
+                )
+                .ifPresent(existingUser -> {
+                    throw new EmailAlreadyExistsException(
+                            request.getEmail()
+                    );
+                });
+
         user.setEmail(request.getEmail());
 
         return mapper.toResponse(user);
