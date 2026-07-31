@@ -9,6 +9,7 @@ import com.fintrack.apiservice.user.dto.FintrackUserUpdateRequest;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
 import com.fintrack.apiservice.user.mapper.FintrackUserMapper;
 import com.fintrack.apiservice.user.repository.FintrackUserRepository;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class FintrackUserService {
         this.mapper = mapper;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     public List<FintrackUserResponse> getAllUsers() {
         return repository.findAll()
                 .stream()
@@ -37,6 +39,7 @@ public class FintrackUserService {
                 .toList();
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     public FintrackUserResponse getUserById(Long id) {
 
         FintrackUser user = repository.findById(id)
@@ -54,6 +57,7 @@ public class FintrackUserService {
         return mapper.toResponse(user);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public FintrackUserResponse updateUser(
             Long id,
@@ -100,6 +104,7 @@ public class FintrackUserService {
         return mapper.toResponse(user);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public void deleteUser(Long id) {
 
