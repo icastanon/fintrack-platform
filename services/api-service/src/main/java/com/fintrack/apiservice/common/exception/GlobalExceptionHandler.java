@@ -1,5 +1,6 @@
 package com.fintrack.apiservice.common.exception;
 
+import com.fintrack.apiservice.auth.refresh.exception.InvalidRefreshTokenException;
 import com.fintrack.apiservice.common.dto.ErrorResponse;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -110,5 +112,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(error);
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(InvalidRefreshTokenException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.UNAUTHORIZED.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(response);
     }
 }

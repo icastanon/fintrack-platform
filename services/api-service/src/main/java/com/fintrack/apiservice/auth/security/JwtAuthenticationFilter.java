@@ -1,5 +1,6 @@
 package com.fintrack.apiservice.auth.security;
 
+import com.fintrack.apiservice.auth.dto.AuthenticatedUserPrincipal;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -7,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,18 +17,14 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final CustomUserDetailsService userDetailsService;
 
-    public JwtAuthenticationFilter(
-            JwtService jwtService,
-            CustomUserDetailsService userDetailsService
-    ) {
+    public JwtAuthenticationFilter(JwtService jwtService) {
         this.jwtService = jwtService;
-        this.userDetailsService = userDetailsService;
     }
 
     @Override
@@ -49,18 +47,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authorizationHeader.substring(7);
 
         try {
+            //verify token and return username
             String username = jwtService.extractUsername(token);
 
 
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails =
-                        userDetailsService.loadUserByUsername(username);
+                AuthenticatedUserPrincipal principal = jwtService.extractPrincipal(token);
+
+                SimpleGrantedAuthority authority =
+                        new SimpleGrantedAuthority(
+                                "ROLE_" + principal.getRole().name()
+                        );
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                                userDetails,
+                                principal,
                                 null,
-                                userDetails.getAuthorities()
+                                List.of(authority)
                         );
 
                 authentication.setDetails(
@@ -72,7 +75,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         SecurityContextHolder.createEmptyContext();
 
                 context.setAuthentication(authentication);
-
                 SecurityContextHolder.setContext(context);
             }
         } catch (JwtException

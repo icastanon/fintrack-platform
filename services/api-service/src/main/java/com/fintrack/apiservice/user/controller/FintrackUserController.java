@@ -32,9 +32,7 @@ public class FintrackUserController {
 
 
     @GetMapping("/{id}")
-    public ResponseEntity<FintrackUserResponse> getUserById(
-            @PathVariable Long id
-    ) {
+    public ResponseEntity<FintrackUserResponse> getUserById(@PathVariable Long id) {
 
         return ResponseEntity.ok(
                 service.getUserById(id)
@@ -42,9 +40,7 @@ public class FintrackUserController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<FintrackUserResponse> getCurrentUser(
-            Authentication authentication
-    ) {
+    public ResponseEntity<FintrackUserResponse> getCurrentUser(Authentication authentication) {
         FintrackUserResponse response =
                 service.getUserByUsername(authentication.getName());
 
@@ -52,8 +48,7 @@ public class FintrackUserController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<FintrackUserResponse> updateUser(
-            @PathVariable Long id,
+    public ResponseEntity<FintrackUserResponse> updateUser(@PathVariable Long id,
             @Valid @RequestBody FintrackUserUpdateRequest request
     ) {
 
@@ -78,9 +73,7 @@ public class FintrackUserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(
-            @PathVariable Long id
-    ) {
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
 
         service.deleteUser(id);
 

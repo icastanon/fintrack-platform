@@ -2,7 +2,6 @@ package com.fintrack.apiservice.auth.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,16 +16,12 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtService jwtService,
-            CustomUserDetailsService userDetailsService,
             RestAuthenticationEntryPoint authenticationEntryPoint,
             RestAccessDeniedHandler accessDeniedHandler
     ) throws Exception {
 
         JwtAuthenticationFilter jwtAuthenticationFilter =
-                new JwtAuthenticationFilter(
-                        jwtService,
-                        userDetailsService
-                );
+                new JwtAuthenticationFilter(jwtService);
 
         return http
                 .csrf(csrf -> csrf.disable())
@@ -50,6 +45,9 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",
+                                "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout",
+
                                 "/error"
                         ).permitAll()
 

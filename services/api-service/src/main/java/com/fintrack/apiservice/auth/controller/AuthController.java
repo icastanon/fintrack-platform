@@ -3,6 +3,7 @@ package com.fintrack.apiservice.auth.controller;
 import com.fintrack.apiservice.auth.dto.AuthResponse;
 import com.fintrack.apiservice.auth.dto.LoginRequest;
 import com.fintrack.apiservice.auth.dto.RegisterRequest;
+import com.fintrack.apiservice.auth.refresh.dto.RefreshTokenRequest;
 import com.fintrack.apiservice.auth.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -20,9 +21,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<Void> register(
-            @Valid @RequestBody RegisterRequest request
-    ) {
+    public ResponseEntity<Void> register(@Valid @RequestBody RegisterRequest request) {
         authService.register(request);
 
         return ResponseEntity
@@ -31,12 +30,24 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(
-            @Valid @RequestBody LoginRequest request
-    ) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
 
         return ResponseEntity.ok(
                 authService.login(request)
         );
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(
+                authService.refresh(request)
+        );
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
+        authService.logout(request);
+
+        return ResponseEntity.noContent().build();
     }
 }
