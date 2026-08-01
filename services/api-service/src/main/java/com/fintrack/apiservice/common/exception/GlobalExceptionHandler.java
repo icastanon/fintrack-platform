@@ -1,6 +1,8 @@
 package com.fintrack.apiservice.common.exception;
 
 import com.fintrack.apiservice.account.exception.AccountNameAlreadyExistsException;
+import com.fintrack.apiservice.account.exception.FinancialAccountNotFoundException;
+import com.fintrack.apiservice.account.exception.FinancialAccountVersionConflictException;
 import com.fintrack.apiservice.account.exception.InvalidCurrencyException;
 import com.fintrack.apiservice.auth.refresh.exception.InvalidRefreshTokenException;
 import com.fintrack.apiservice.common.dto.ErrorResponse;
@@ -9,6 +11,7 @@ import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -44,9 +47,7 @@ public class GlobalExceptionHandler {
         );
 
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
 
@@ -60,9 +61,7 @@ public class GlobalExceptionHandler {
         );
 
 
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(response);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     @ExceptionHandler(UsernameAlreadyExistsException.class)
@@ -74,9 +73,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(response);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
@@ -87,9 +84,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(errorResponse);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
@@ -101,9 +96,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(error);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     @ExceptionHandler(InvalidRefreshTokenException.class)
@@ -114,9 +107,7 @@ public class GlobalExceptionHandler {
                 Map.of()
         );
 
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(response);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @ExceptionHandler(AccountNameAlreadyExistsException.class)
@@ -128,9 +119,7 @@ public class GlobalExceptionHandler {
                 Map.of()
         );
 
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(response);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(InvalidCurrencyException.class)
@@ -141,8 +130,44 @@ public class GlobalExceptionHandler {
                 Map.of()
         );
 
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(FinancialAccountNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleFinancialAccountNotFound(FinancialAccountNotFoundException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(FinancialAccountVersionConflictException.class)
+    public ResponseEntity<ErrorResponse> handleAccountVersionConflict(FinancialAccountVersionConflictException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
         return ResponseEntity
-                .badRequest()
+                .status(HttpStatus.CONFLICT)
+                .body(response);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "The resource was modified by another request. " +
+                        "Reload it and try again.",
+                Map.of()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
                 .body(response);
     }
 }
