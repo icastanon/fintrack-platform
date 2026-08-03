@@ -1,9 +1,6 @@
 package com.fintrack.apiservice.common.exception;
 
-import com.fintrack.apiservice.account.exception.AccountNameAlreadyExistsException;
-import com.fintrack.apiservice.account.exception.FinancialAccountNotFoundException;
-import com.fintrack.apiservice.account.exception.FinancialAccountVersionConflictException;
-import com.fintrack.apiservice.account.exception.InvalidCurrencyException;
+import com.fintrack.apiservice.account.exception.*;
 import com.fintrack.apiservice.auth.refresh.exception.InvalidRefreshTokenException;
 import com.fintrack.apiservice.common.dto.ErrorResponse;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
@@ -163,6 +160,19 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT.value(),
                 "The resource was modified by another request. " +
                         "Reload it and try again.",
+                Map.of()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(response);
+    }
+
+    @ExceptionHandler(FinancialAccountClosedException.class)
+    public ResponseEntity<ErrorResponse> handleFinancialAccountClosed(FinancialAccountClosedException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                exception.getMessage(),
                 Map.of()
         );
 

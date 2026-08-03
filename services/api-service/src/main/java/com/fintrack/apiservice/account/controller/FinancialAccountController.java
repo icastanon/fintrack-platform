@@ -89,4 +89,17 @@ public class FinancialAccountController {
 
         return ResponseEntity.ok(response);
     }
+
+    @PatchMapping("/{accountId}/close")
+    public ResponseEntity<FinancialAccountResponse> closeAccount(
+            @AuthenticationPrincipal
+            AuthenticatedUserPrincipal principal,
+
+            @PathVariable
+            Long accountId
+    ) {
+        FinancialAccountResponse response = accountService.closeAccount(principal.getUserId(), accountId);
+
+        return ResponseEntity.ok(response);
+    }
 }

@@ -5,16 +5,15 @@ import com.fintrack.apiservice.account.dto.FinancialAccountResponse;
 import com.fintrack.apiservice.account.dto.FinancialAccountUpdateRequest;
 import com.fintrack.apiservice.account.entity.AccountStatus;
 import com.fintrack.apiservice.account.entity.FinancialAccount;
-import com.fintrack.apiservice.account.exception.AccountNameAlreadyExistsException;
-import com.fintrack.apiservice.account.exception.FinancialAccountNotFoundException;
-import com.fintrack.apiservice.account.exception.FinancialAccountVersionConflictException;
-import com.fintrack.apiservice.account.exception.InvalidCurrencyException;
+import com.fintrack.apiservice.account.exception.*;
 import com.fintrack.apiservice.account.mapper.FinancialAccountMapper;
 import com.fintrack.apiservice.account.repository.FinancialAccountRepository;
 import com.fintrack.apiservice.common.dto.PageResponse;
 import com.fintrack.apiservice.user.entity.FintrackUser;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
 import com.fintrack.apiservice.user.repository.FintrackUserRepository;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -69,9 +68,17 @@ public class FinancialAccountService {
         account.setCurrentBalance(request.getOpeningBalance());
         account.setStatus(AccountStatus.ACTIVE);
 
-        FinancialAccount savedAccount = accountRepository.save(account);
+        try {
+            FinancialAccount savedAccount = accountRepository.saveAndFlush(account);
 
-        return mapper.toResponse(savedAccount);
+            return mapper.toResponse(savedAccount);
+        } catch (DataIntegrityViolationException exception) {
+            if (isDuplicateAccountNameViolation(exception)) {
+                throw new AccountNameAlreadyExistsException(normalizedName);
+            }
+
+            throw exception;
+        }
     }
 
     private void validateCurrency(String currencyCode) {
@@ -112,6 +119,10 @@ public class FinancialAccountService {
                 .findByIdAndUserId(accountId, userId)
                 .orElseThrow(FinancialAccountNotFoundException::new);
 
+        if (account.getStatus() == AccountStatus.CLOSED) {
+            throw new FinancialAccountClosedException();
+        }
+
         if (!Objects.equals(request.getVersion(), account.getVersion())) {
             throw new FinancialAccountVersionConflictException();
         }
@@ -127,8 +138,47 @@ public class FinancialAccountService {
         account.setName(normalizedName);
         account.setAccountType(request.getAccountType());
 
+        try {
+            accountRepository.flush();
+        } catch (DataIntegrityViolationException exception) {
+            if (isDuplicateAccountNameViolation(exception)) {
+                throw new AccountNameAlreadyExistsException(normalizedName);
+            }
+
+            throw exception;
+        }
+
+        return mapper.toResponse(account);
+    }
+
+    @Transactional
+    public FinancialAccountResponse closeAccount(Long userId, Long accountId) {
+        FinancialAccount account = accountRepository
+                .findByIdAndUserId(accountId, userId)
+                .orElseThrow(FinancialAccountNotFoundException::new);
+
+        if (account.getStatus() == AccountStatus.CLOSED) {
+            return mapper.toResponse(account);
+        }
+
+        account.setStatus(AccountStatus.CLOSED);
+
         accountRepository.flush();
 
         return mapper.toResponse(account);
+    }
+
+    private boolean isDuplicateAccountNameViolation(DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintException) {
+                return "uq_financial_account_user_name_ci".equals(constraintException.getConstraintName());
+            }
+
+            cause = cause.getCause();
+        }
+
+        return false;
     }
 }
