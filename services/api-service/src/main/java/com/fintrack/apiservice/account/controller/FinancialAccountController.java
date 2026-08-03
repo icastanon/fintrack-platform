@@ -6,17 +6,25 @@ import com.fintrack.apiservice.account.dto.FinancialAccountUpdateRequest;
 import com.fintrack.apiservice.account.service.FinancialAccountService;
 import com.fintrack.apiservice.auth.dto.AuthenticatedUserPrincipal;
 import com.fintrack.apiservice.common.dto.PageResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import static com.fintrack.apiservice.common.config.OpenApiConfig.BEARER_AUTH;
 
 @RestController
 @RequestMapping("/api/v1/accounts")
+@Tag(
+        name = "Financial Accounts",
+        description = "Create and manage the authenticated user's accounts"
+)
+@SecurityRequirement(name = BEARER_AUTH)
 public class FinancialAccountController {
 
     private final FinancialAccountService accountService;
