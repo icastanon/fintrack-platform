@@ -39,9 +39,13 @@ public class CategorizationService {
     }
 
     private boolean matches(String normalizedMerchant, CategorizationRule rule) {
+        if (normalizedMerchant.isBlank()) {
+            return false;
+        }
+
         String normalizedPattern = normalize(rule.getMerchantPattern());
 
-        return !normalizedMerchant.isBlank() && normalizedMerchant.contains(normalizedPattern);
+        return !normalizedPattern.isBlank() && normalizedMerchant.contains(normalizedPattern);
     }
 
     private Category getFallbackCategory() {
