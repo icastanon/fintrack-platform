@@ -57,4 +57,20 @@ public class FinancialAccount {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public void credit(BigDecimal amount) {
+        validatePositiveAmount(amount);
+        currentBalance = currentBalance.add(amount);
+    }
+
+    public void debit(BigDecimal amount) {
+        validatePositiveAmount(amount);
+        currentBalance = currentBalance.subtract(amount);
+    }
+
+    private void validatePositiveAmount(BigDecimal amount) {
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("Amount must be positive");
+        }
+    }
 }
