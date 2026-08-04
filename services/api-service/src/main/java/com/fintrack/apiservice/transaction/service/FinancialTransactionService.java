@@ -5,13 +5,14 @@ import com.fintrack.apiservice.account.entity.FinancialAccount;
 import com.fintrack.apiservice.account.exception.FinancialAccountClosedException;
 import com.fintrack.apiservice.account.exception.FinancialAccountNotFoundException;
 import com.fintrack.apiservice.account.repository.FinancialAccountRepository;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionCreateRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionFilterRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionPageResponse;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionResponse;
+import com.fintrack.apiservice.category.entity.Category;
+import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
+import com.fintrack.apiservice.category.repository.CategoryRepository;
+import com.fintrack.apiservice.transaction.dto.*;
 import com.fintrack.apiservice.transaction.entity.FinancialTransaction;
 import com.fintrack.apiservice.transaction.entity.TransactionType;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
+import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.transaction.mapper.FinancialTransactionMapper;
 import com.fintrack.apiservice.transaction.repository.FinancialTransactionRepository;
 import org.springframework.data.domain.Page;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @Transactional(readOnly = true)
@@ -31,13 +33,13 @@ public class FinancialTransactionService {
     private final FinancialTransactionRepository transactionRepository;
     private final FinancialAccountRepository accountRepository;
     private final FinancialTransactionMapper transactionMapper;
+    private final CategoryRepository categoryRepository;
 
-    public FinancialTransactionService(FinancialTransactionRepository transactionRepository,
-                                       FinancialAccountRepository accountRepository,
-                                       FinancialTransactionMapper transactionMapper) {
+    public FinancialTransactionService(FinancialTransactionRepository transactionRepository, FinancialAccountRepository accountRepository, FinancialTransactionMapper transactionMapper, CategoryRepository categoryRepository) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
         this.transactionMapper = transactionMapper;
+        this.categoryRepository = categoryRepository;
     }
 
     @Transactional
@@ -114,5 +116,23 @@ public class FinancialTransactionService {
                 transactionPage.isFirst(),
                 transactionPage.isLast()
         );
+    }
+
+    @Transactional
+    public FinancialTransactionResponse overrideCategory(Long userId, Long transactionId, FinancialTransactionCategoryOverrideRequest request) {
+        FinancialTransaction transaction = transactionRepository.findByIdAndAccountUserId(transactionId, userId)
+                .orElseThrow(FinancialTransactionNotFoundException::new);
+
+        if (!Objects.equals(request.getVersion(), transaction.getVersion())) {
+            throw new FinancialTransactionVersionConflictException();
+        }
+
+        Category category = categoryRepository.findById(request.getCategoryId()).orElseThrow(CategoryNotFoundException::new);
+
+        transaction.overrideCategory(category);
+
+        transactionRepository.flush();
+
+        return transactionMapper.toResponse(transaction);
     }
 }

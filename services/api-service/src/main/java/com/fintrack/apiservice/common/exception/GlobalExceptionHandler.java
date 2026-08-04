@@ -2,8 +2,10 @@ package com.fintrack.apiservice.common.exception;
 
 import com.fintrack.apiservice.account.exception.*;
 import com.fintrack.apiservice.auth.refresh.exception.InvalidRefreshTokenException;
+import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
 import com.fintrack.apiservice.common.dto.ErrorResponse;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
+import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
@@ -207,5 +209,19 @@ public class GlobalExceptionHandler {
         ErrorResponse response = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Validation failed", errors);
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleCategoryNotFound(CategoryNotFoundException exception) {
+        ErrorResponse response = new ErrorResponse(HttpStatus.NOT_FOUND.value(), exception.getMessage(), Map.of());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(FinancialTransactionVersionConflictException.class)
+    public ResponseEntity<ErrorResponse> handleFinancialTransactionVersionConflict(FinancialTransactionVersionConflictException exception) {
+        ErrorResponse response = new ErrorResponse(HttpStatus.CONFLICT.value(), exception.getMessage(), Map.of());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 }

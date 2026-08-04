@@ -1,10 +1,7 @@
 package com.fintrack.apiservice.transaction.controller;
 
 import com.fintrack.apiservice.auth.dto.AuthenticatedUserPrincipal;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionCreateRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionFilterRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionPageResponse;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionResponse;
+import com.fintrack.apiservice.transaction.dto.*;
 import com.fintrack.apiservice.transaction.service.FinancialTransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -64,6 +61,18 @@ public class FinancialTransactionController {
             FinancialTransactionFilterRequest filter
     ) {
         FinancialTransactionPageResponse response = transactionService.getTransactions(principal.getUserId(), filter);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{transactionId}/category")
+    @Operation(summary = "Override transaction category", description = "Manually assigns a category and prevents automatic categorization from overwriting it")
+    public ResponseEntity<FinancialTransactionResponse> overrideCategory(
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal,
+            @PathVariable Long transactionId,
+            @Valid
+            @RequestBody FinancialTransactionCategoryOverrideRequest request) {
+        FinancialTransactionResponse response = transactionService.overrideCategory(principal.getUserId(), transactionId, request);
 
         return ResponseEntity.ok(response);
     }

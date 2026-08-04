@@ -6,15 +6,16 @@ import com.fintrack.apiservice.account.entity.FinancialAccount;
 import com.fintrack.apiservice.account.exception.FinancialAccountClosedException;
 import com.fintrack.apiservice.account.exception.FinancialAccountNotFoundException;
 import com.fintrack.apiservice.account.repository.FinancialAccountRepository;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionCreateRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionFilterRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionPageResponse;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionResponse;
+import com.fintrack.apiservice.category.entity.Category;
+import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
+import com.fintrack.apiservice.category.repository.CategoryRepository;
+import com.fintrack.apiservice.transaction.dto.*;
 import com.fintrack.apiservice.transaction.entity.FinancialTransaction;
 import com.fintrack.apiservice.transaction.entity.ProcessingStatus;
 import com.fintrack.apiservice.transaction.entity.TransactionSource;
 import com.fintrack.apiservice.transaction.entity.TransactionType;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
+import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.transaction.mapper.FinancialTransactionMapper;
 import com.fintrack.apiservice.transaction.repository.FinancialTransactionRepository;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -54,6 +56,9 @@ class FinancialTransactionServiceTest {
 
     @Captor
     private ArgumentCaptor<FinancialTransaction> transactionCaptor;
+
+    @Mock
+    private CategoryRepository categoryRepository;
 
     @InjectMocks
     private FinancialTransactionService transactionService;
@@ -300,5 +305,130 @@ class FinancialTransactionServiceTest {
         assertThat(capturedPageable.getSort().getOrderFor("transactionDate").getDirection()).isEqualTo(Sort.Direction.DESC);
         assertThat(capturedPageable.getSort().getOrderFor("id")).isNotNull();
         assertThat(capturedPageable.getSort().getOrderFor("id").getDirection()).isEqualTo(Sort.Direction.DESC);
+    }
+
+    @Test
+    void overrideCategoryAssignsManualCategoryAndFlushesBeforeMapping() {
+        FinancialAccount account = createActiveAccount(new BigDecimal("1000.00"));
+
+        FinancialTransaction transaction = FinancialTransaction.createManual(
+                account,
+                TransactionType.EXPENSE,
+                new BigDecimal("83.42"),
+                "Publix",
+                "Weekly groceries",
+                LocalDate.of(2026, 8, 3)
+        );
+
+        ReflectionTestUtils.setField(transaction, "version", 0L);
+
+        Category category = org.mockito.Mockito.mock(Category.class);
+
+        FinancialTransactionCategoryOverrideRequest request = new FinancialTransactionCategoryOverrideRequest();
+        request.setCategoryId(2L);
+        request.setVersion(0L);
+
+        FinancialTransactionResponse expectedResponse = org.mockito.Mockito.mock(FinancialTransactionResponse.class);
+
+        when(transactionRepository.findByIdAndAccountUserId(41L, 7L)).thenReturn(Optional.of(transaction));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(category));
+        when(transactionMapper.toResponse(transaction)).thenReturn(expectedResponse);
+
+        FinancialTransactionResponse result = transactionService.overrideCategory(7L, 41L, request);
+
+        assertThat(result).isSameAs(expectedResponse);
+        assertThat(transaction.getCategory()).isSameAs(category);
+        assertThat(transaction.isManualCategoryOverride()).isTrue();
+
+        verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
+        verify(categoryRepository).findById(2L);
+        verify(transactionRepository).flush();
+        verify(transactionMapper).toResponse(transaction);
+    }
+
+    @Test
+    void overrideCategoryRejectsMissingOrUnownedTransaction() {
+        FinancialTransactionCategoryOverrideRequest request = new FinancialTransactionCategoryOverrideRequest();
+        request.setCategoryId(2L);
+        request.setVersion(0L);
+
+        when(transactionRepository.findByIdAndAccountUserId(41L, 7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> transactionService.overrideCategory(7L, 41L, request))
+                .isInstanceOf(FinancialTransactionNotFoundException.class);
+
+        verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
+        verifyNoInteractions(categoryRepository);
+        verify(transactionRepository, never()).flush();
+        verifyNoInteractions(transactionMapper);
+    }
+
+    @Test
+    void overrideCategoryRejectsStaleVersion() {
+        FinancialAccount account = createActiveAccount(new BigDecimal("1000.00"));
+
+        FinancialTransaction transaction = FinancialTransaction.createManual(
+                account,
+                TransactionType.EXPENSE,
+                new BigDecimal("83.42"),
+                "Publix",
+                "Weekly groceries",
+                LocalDate.of(2026, 8, 3)
+        );
+
+        ReflectionTestUtils.setField(transaction, "version", 1L);
+
+        FinancialTransactionCategoryOverrideRequest request = new FinancialTransactionCategoryOverrideRequest();
+        request.setCategoryId(2L);
+        request.setVersion(0L);
+
+        when(transactionRepository.findByIdAndAccountUserId(41L, 7L)).thenReturn(Optional.of(transaction));
+
+        assertThatThrownBy(() -> transactionService.overrideCategory(7L, 41L, request))
+                .isInstanceOf(FinancialTransactionVersionConflictException.class)
+                .hasMessage("The financial transaction was modified. Reload it and try again.");
+
+        assertThat(transaction.getCategory()).isNull();
+        assertThat(transaction.isManualCategoryOverride()).isFalse();
+
+        verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
+        verifyNoInteractions(categoryRepository);
+        verify(transactionRepository, never()).flush();
+        verifyNoInteractions(transactionMapper);
+    }
+
+    @Test
+    void overrideCategoryRejectsMissingCategory() {
+        FinancialAccount account = createActiveAccount(new BigDecimal("1000.00"));
+
+        FinancialTransaction transaction = FinancialTransaction.createManual(
+                account,
+                TransactionType.EXPENSE,
+                new BigDecimal("83.42"),
+                "Publix",
+                "Weekly groceries",
+                LocalDate.of(2026, 8, 3)
+        );
+
+        ReflectionTestUtils.setField(transaction, "version", 0L);
+
+        FinancialTransactionCategoryOverrideRequest request = new FinancialTransactionCategoryOverrideRequest();
+        request.setCategoryId(999L);
+        request.setVersion(0L);
+
+        when(transactionRepository.findByIdAndAccountUserId(41L, 7L)).thenReturn(Optional.of(transaction));
+        when(categoryRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> transactionService.overrideCategory(7L, 41L, request))
+                .isInstanceOf(CategoryNotFoundException.class)
+                .hasMessage("Category was not found");
+
+        assertThat(transaction.getCategory()).isNull();
+        assertThat(transaction.isManualCategoryOverride()).isFalse();
+
+        verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
+        verify(categoryRepository).findById(999L);
+        verify(transactionRepository, never()).flush();
+        verifyNoInteractions(transactionMapper);
     }
 }

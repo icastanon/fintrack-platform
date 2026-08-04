@@ -7,15 +7,14 @@ import com.fintrack.apiservice.auth.security.JwtService;
 import com.fintrack.apiservice.auth.security.RestAccessDeniedHandler;
 import com.fintrack.apiservice.auth.security.RestAuthenticationEntryPoint;
 import com.fintrack.apiservice.auth.security.SecurityConfig;
+import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
 import com.fintrack.apiservice.common.exception.GlobalExceptionHandler;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionCreateRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionFilterRequest;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionPageResponse;
-import com.fintrack.apiservice.transaction.dto.FinancialTransactionResponse;
+import com.fintrack.apiservice.transaction.dto.*;
 import com.fintrack.apiservice.transaction.entity.ProcessingStatus;
 import com.fintrack.apiservice.transaction.entity.TransactionSource;
 import com.fintrack.apiservice.transaction.entity.TransactionType;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
+import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.transaction.service.FinancialTransactionService;
 import com.fintrack.apiservice.user.entity.Role;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,8 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -491,5 +489,178 @@ class FinancialTransactionControllerTest {
                 .andExpect(jsonPath("$.message").value("Validation failed"));
 
         verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void overrideCategoryReturnsUpdatedTransaction() throws Exception {
+        FinancialTransactionResponse response = createOverriddenCategoryResponse();
+
+        when(transactionService.overrideCategory(eq(7L), eq(41L), any(FinancialTransactionCategoryOverrideRequest.class))).thenReturn(response);
+
+        mockMvc.perform(
+                        patch("/api/v1/transactions/{transactionId}/category", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "categoryId": 2,
+                                      "version": 0
+                                    }
+                                    """)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(41))
+                .andExpect(jsonPath("$.categoryId").value(2))
+                .andExpect(jsonPath("$.categoryName").value("Groceries"))
+                .andExpect(jsonPath("$.manualCategoryOverride").value(true))
+                .andExpect(jsonPath("$.version").value(1));
+
+        ArgumentCaptor<FinancialTransactionCategoryOverrideRequest> requestCaptor = ArgumentCaptor.forClass(FinancialTransactionCategoryOverrideRequest.class);
+
+        verify(transactionService).overrideCategory(eq(7L), eq(41L), requestCaptor.capture());
+
+        FinancialTransactionCategoryOverrideRequest capturedRequest = requestCaptor.getValue();
+
+        assertThat(capturedRequest.getCategoryId()).isEqualTo(2L);
+        assertThat(capturedRequest.getVersion()).isZero();
+    }
+
+    @Test
+    void overrideCategoryForMissingOrUnownedTransactionReturnsNotFound() throws Exception {
+        when(transactionService.overrideCategory(eq(7L), eq(41L), any(FinancialTransactionCategoryOverrideRequest.class)))
+                .thenThrow(new FinancialTransactionNotFoundException());
+
+        mockMvc.perform(
+                        patch("/api/v1/transactions/{transactionId}/category", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "categoryId": 2,
+                                      "version": 0
+                                    }
+                                    """)
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Financial transaction was not found"));
+    }
+
+    @Test
+    void overrideCategoryWithMissingCategoryReturnsNotFound() throws Exception {
+        when(transactionService.overrideCategory(eq(7L), eq(41L), any(FinancialTransactionCategoryOverrideRequest.class)))
+                .thenThrow(new CategoryNotFoundException());
+
+        mockMvc.perform(
+                        patch("/api/v1/transactions/{transactionId}/category", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "categoryId": 999,
+                                      "version": 0
+                                    }
+                                    """)
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Category was not found"));
+    }
+
+    @Test
+    void overrideCategoryWithStaleVersionReturnsConflict() throws Exception {
+        when(transactionService.overrideCategory(eq(7L), eq(41L), any(FinancialTransactionCategoryOverrideRequest.class)))
+                .thenThrow(new FinancialTransactionVersionConflictException());
+
+        mockMvc.perform(
+                        patch("/api/v1/transactions/{transactionId}/category", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "categoryId": 2,
+                                      "version": 0
+                                    }
+                                    """)
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("The financial transaction was modified. Reload it and try again."));
+    }
+
+    @Test
+    void overrideCategoryWithoutCategoryIdReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        patch("/api/v1/transactions/{transactionId}/category", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "version": 0
+                                    }
+                                    """)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void overrideCategoryWithoutVersionReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        patch("/api/v1/transactions/{transactionId}/category", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "categoryId": 2
+                                    }
+                                    """)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void overrideCategoryWithoutJwtReturnsUnauthorized() throws Exception {
+        mockMvc.perform(
+                        patch("/api/v1/transactions/{transactionId}/category", 41L)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "categoryId": 2,
+                                      "version": 0
+                                    }
+                                    """)
+                )
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(transactionService);
+    }
+
+    private FinancialTransactionResponse createOverriddenCategoryResponse() {
+        return new FinancialTransactionResponse(
+                41L,
+                15L,
+                "Primary Checking",
+                2L,
+                "Groceries",
+                TransactionType.EXPENSE,
+                new BigDecimal("83.42"),
+                "Publix #1472",
+                "Weekly groceries",
+                LocalDate.of(2026, 8, 3),
+                ProcessingStatus.PENDING,
+                TransactionSource.MANUAL,
+                true,
+                1L,
+                Instant.parse("2026-08-03T20:00:00Z"),
+                Instant.parse("2026-08-04T20:00:00Z")
+        );
     }
 }
