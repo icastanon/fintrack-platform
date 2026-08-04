@@ -52,7 +52,7 @@ public class FinancialTransactionService {
 
         applyBalanceChange(account, request.getTransactionType(), request.getAmount());
 
-        FinancialTransaction savedTransaction = transactionRepository.saveAndFlush(transaction);
+        FinancialTransaction savedTransaction = transactionRepository.save(transaction);
 
         return transactionMapper.toResponse(savedTransaction);
     }

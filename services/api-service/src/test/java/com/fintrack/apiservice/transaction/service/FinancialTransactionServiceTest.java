@@ -63,12 +63,12 @@ class FinancialTransactionServiceTest {
         FinancialTransactionResponse expectedResponse = org.mockito.Mockito.mock(FinancialTransactionResponse.class);
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
-        when(transactionRepository.saveAndFlush(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(expectedResponse);
 
         FinancialTransactionResponse result = transactionService.createTransaction(7L, request);
 
-        verify(transactionRepository).saveAndFlush(transactionCaptor.capture());
+        verify(transactionRepository).save(transactionCaptor.capture());
 
         FinancialTransaction savedTransaction = transactionCaptor.getValue();
 
@@ -95,12 +95,12 @@ class FinancialTransactionServiceTest {
         FinancialTransactionCreateRequest request = createRequest(TransactionType.INCOME, new BigDecimal("250.00"));
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
-        when(transactionRepository.saveAndFlush(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
 
         transactionService.createTransaction(7L, request);
 
-        verify(transactionRepository).saveAndFlush(transactionCaptor.capture());
+        verify(transactionRepository).save(transactionCaptor.capture());
 
         FinancialTransaction savedTransaction = transactionCaptor.getValue();
 
@@ -117,12 +117,12 @@ class FinancialTransactionServiceTest {
         request.setDescription(null);
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
-        when(transactionRepository.saveAndFlush(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
 
         transactionService.createTransaction(7L, request);
 
-        verify(transactionRepository).saveAndFlush(transactionCaptor.capture());
+        verify(transactionRepository).save(transactionCaptor.capture());
 
         FinancialTransaction savedTransaction = transactionCaptor.getValue();
 
@@ -139,7 +139,7 @@ class FinancialTransactionServiceTest {
         assertThatThrownBy(() -> transactionService.createTransaction(7L, request))
                 .isInstanceOf(FinancialAccountNotFoundException.class);
 
-        verify(transactionRepository, never()).saveAndFlush(any(FinancialTransaction.class));
+        verify(transactionRepository, never()).save(any(FinancialTransaction.class));
         verifyNoInteractions(transactionMapper);
     }
 
@@ -157,7 +157,7 @@ class FinancialTransactionServiceTest {
 
         assertThat(account.getCurrentBalance()).isEqualByComparingTo("1000.00");
 
-        verify(transactionRepository, never()).saveAndFlush(any(FinancialTransaction.class));
+        verify(transactionRepository, never()).save(any(FinancialTransaction.class));
         verifyNoInteractions(transactionMapper);
     }
 

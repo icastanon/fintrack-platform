@@ -158,8 +158,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException exception) {
         ErrorResponse response = new ErrorResponse(
                 HttpStatus.CONFLICT.value(),
-                "The resource was modified by another request. " +
-                        "Reload it and try again.",
+                "The resource was modified by another request. Reload it and try again.",
                 Map.of()
         );
 
