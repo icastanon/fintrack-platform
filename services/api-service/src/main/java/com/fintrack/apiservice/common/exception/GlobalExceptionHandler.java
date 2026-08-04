@@ -3,6 +3,7 @@ package com.fintrack.apiservice.common.exception;
 import com.fintrack.apiservice.account.exception.*;
 import com.fintrack.apiservice.auth.refresh.exception.InvalidRefreshTokenException;
 import com.fintrack.apiservice.common.dto.ErrorResponse;
+import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
@@ -13,6 +14,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -178,5 +180,32 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(response);
+    }
+
+    @ExceptionHandler(FinancialTransactionNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleFinancialTransactionNotFound(FinancialTransactionNotFoundException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException exception) {
+        Map<String, String> errors = new HashMap<>();
+
+        exception.getParameterValidationResults().forEach(result -> {
+            String parameterName = result.getMethodParameter().getParameterName();
+            String errorKey = parameterName == null ? "parameter" : parameterName;
+
+            result.getResolvableErrors().forEach(error -> errors.put(errorKey, error.getDefaultMessage()));
+        });
+
+        ErrorResponse response = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Validation failed", errors);
+
+        return ResponseEntity.badRequest().body(response);
     }
 }

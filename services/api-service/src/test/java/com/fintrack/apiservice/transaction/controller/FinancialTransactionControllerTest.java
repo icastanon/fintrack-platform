@@ -9,10 +9,13 @@ import com.fintrack.apiservice.auth.security.RestAuthenticationEntryPoint;
 import com.fintrack.apiservice.auth.security.SecurityConfig;
 import com.fintrack.apiservice.common.exception.GlobalExceptionHandler;
 import com.fintrack.apiservice.transaction.dto.FinancialTransactionCreateRequest;
+import com.fintrack.apiservice.transaction.dto.FinancialTransactionFilterRequest;
+import com.fintrack.apiservice.transaction.dto.FinancialTransactionPageResponse;
 import com.fintrack.apiservice.transaction.dto.FinancialTransactionResponse;
 import com.fintrack.apiservice.transaction.entity.ProcessingStatus;
 import com.fintrack.apiservice.transaction.entity.TransactionSource;
 import com.fintrack.apiservice.transaction.entity.TransactionType;
+import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
 import com.fintrack.apiservice.transaction.service.FinancialTransactionService;
 import com.fintrack.apiservice.user.entity.Role;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -277,5 +282,214 @@ class FinancialTransactionControllerTest {
                   "transactionDate": "2026-08-03"
                 }
                 """;
+    }
+
+    @Test
+    void getTransactionReturnsOwnedTransaction() throws Exception {
+        FinancialTransactionResponse response = createResponse();
+
+        when(transactionService.getTransaction(7L, 41L)).thenReturn(response);
+
+        mockMvc.perform(
+                        get("/api/v1/transactions/{transactionId}", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(41))
+                .andExpect(jsonPath("$.accountId").value(15))
+                .andExpect(jsonPath("$.accountName").value("Primary Checking"))
+                .andExpect(jsonPath("$.transactionType").value("EXPENSE"))
+                .andExpect(jsonPath("$.amount").value(83.42))
+                .andExpect(jsonPath("$.merchant").value("Publix #1472"))
+                .andExpect(jsonPath("$.description").value("Weekly groceries"))
+                .andExpect(jsonPath("$.transactionDate").value("2026-08-03"))
+                .andExpect(jsonPath("$.processingStatus").value("PENDING"))
+                .andExpect(jsonPath("$.source").value("MANUAL"))
+                .andExpect(jsonPath("$.manualCategoryOverride").value(false))
+                .andExpect(jsonPath("$.version").value(0));
+
+        verify(transactionService).getTransaction(7L, 41L);
+    }
+
+    @Test
+    void getTransactionWithoutJwtReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/transactions/{transactionId}", 41L)).andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void getTransactionForMissingOrUnownedTransactionReturnsNotFound() throws Exception {
+        when(transactionService.getTransaction(7L, 41L)).thenThrow(new FinancialTransactionNotFoundException());
+
+        mockMvc.perform(
+                        get("/api/v1/transactions/{transactionId}", 41L)
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Financial transaction was not found"));
+
+        verify(transactionService).getTransaction(7L, 41L);
+    }
+
+    @Test
+    void getTransactionsReturnsFilteredPaginatedOwnedTransactions() throws Exception {
+        FinancialTransactionPageResponse response = new FinancialTransactionPageResponse(
+                List.of(createResponse()), 1, 2, 3, 2, false, true);
+
+        when(transactionService.getTransactions(eq(7L), any(FinancialTransactionFilterRequest.class))).thenReturn(response);
+
+        mockMvc.perform(
+                        get("/api/v1/transactions")
+                                .header("Authorization", "Bearer valid-token")
+                                .param("accountId", "15")
+                                .param("categoryId", "2")
+                                .param("transactionType", "EXPENSE")
+                                .param("processingStatus", "PROCESSED")
+                                .param("fromDate", "2026-08-01")
+                                .param("toDate", "2026-08-31")
+                                .param("page", "1")
+                                .param("size", "2")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(41))
+                .andExpect(jsonPath("$.content[0].accountId").value(15))
+                .andExpect(jsonPath("$.content[0].transactionType").value("EXPENSE"))
+                .andExpect(jsonPath("$.content[0].amount").value(83.42))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.first").value(false))
+                .andExpect(jsonPath("$.last").value(true));
+
+        ArgumentCaptor<FinancialTransactionFilterRequest> filterCaptor = ArgumentCaptor.forClass(FinancialTransactionFilterRequest.class);
+
+        verify(transactionService).getTransactions(eq(7L), filterCaptor.capture());
+
+        FinancialTransactionFilterRequest capturedFilter = filterCaptor.getValue();
+
+        assertThat(capturedFilter.getAccountId()).isEqualTo(15L);
+        assertThat(capturedFilter.getCategoryId()).isEqualTo(2L);
+        assertThat(capturedFilter.getTransactionType()).isEqualTo(TransactionType.EXPENSE);
+        assertThat(capturedFilter.getProcessingStatus()).isEqualTo(ProcessingStatus.PROCESSED);
+        assertThat(capturedFilter.getFromDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(capturedFilter.getToDate()).isEqualTo(LocalDate.of(2026, 8, 31));
+        assertThat(capturedFilter.getPage()).isEqualTo(1);
+        assertThat(capturedFilter.getSize()).isEqualTo(2);
+    }
+
+    @Test
+    void getTransactionsUsesDefaultPaginationAndNullFilters() throws Exception {
+        FinancialTransactionPageResponse response = new FinancialTransactionPageResponse(
+                List.of(), 0, 20, 0, 0, true, true);
+
+        when(transactionService.getTransactions(eq(7L), any(FinancialTransactionFilterRequest.class))).thenReturn(response);
+
+        mockMvc.perform(
+                        get("/api/v1/transactions")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        ArgumentCaptor<FinancialTransactionFilterRequest> filterCaptor = ArgumentCaptor.forClass(FinancialTransactionFilterRequest.class);
+
+        verify(transactionService).getTransactions(eq(7L), filterCaptor.capture());
+
+        FinancialTransactionFilterRequest capturedFilter = filterCaptor.getValue();
+
+        assertThat(capturedFilter.getAccountId()).isNull();
+        assertThat(capturedFilter.getCategoryId()).isNull();
+        assertThat(capturedFilter.getTransactionType()).isNull();
+        assertThat(capturedFilter.getProcessingStatus()).isNull();
+        assertThat(capturedFilter.getFromDate()).isNull();
+        assertThat(capturedFilter.getToDate()).isNull();
+        assertThat(capturedFilter.getPage()).isZero();
+        assertThat(capturedFilter.getSize()).isEqualTo(20);
+    }
+
+    @Test
+    void getTransactionsWithNegativePageReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/transactions")
+                                .header("Authorization", "Bearer valid-token")
+                                .param("page", "-1")
+                                .param("size", "20")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void getTransactionsWithPageSizeAboveMaximumReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/transactions")
+                                .header("Authorization", "Bearer valid-token")
+                                .param("page", "0")
+                                .param("size", "101")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void getTransactionsWithoutJwtReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/transactions"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void getTransactionsWithInvalidDateRangeReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/transactions")
+                                .header("Authorization", "Bearer valid-token")
+                                .param("fromDate", "2026-08-31")
+                                .param("toDate", "2026-08-01")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void getTransactionsWithNonPositiveAccountIdReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/transactions")
+                                .header("Authorization", "Bearer valid-token")
+                                .param("accountId", "0")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void getTransactionsWithNonPositiveCategoryIdReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/transactions")
+                                .header("Authorization", "Bearer valid-token")
+                                .param("categoryId", "-1")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionService);
     }
 }
