@@ -60,34 +60,29 @@ class AuthServiceTest {
 
     @Test
     void registerCreatesUserWithUserRoleAndEncodedPassword() {
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("ivan");
-        request.setEmail("ivan@example.com");
-        request.setPassword("plain-password");
+        RegisterRequest request = mock(RegisterRequest.class);
+        FintrackUser user = new FintrackUser();
 
-        FintrackUser mappedUser = new FintrackUser();
-        mappedUser.setUsername("ivan");
-        mappedUser.setEmail("ivan@example.com");
+        when(request.getUsername()).thenReturn("ivan");
+        when(request.getEmail()).thenReturn("ivan@example.com");
+        when(request.getPassword()).thenReturn("plain-password");
 
         when(userRepository.existsByUsername("ivan")).thenReturn(false);
-
         when(userRepository.existsByEmail("ivan@example.com")).thenReturn(false);
-
-        when(mapper.toEntity(request)).thenReturn(mappedUser);
-
+        when(mapper.toEntity(request)).thenReturn(user);
         when(passwordEncoder.encode("plain-password")).thenReturn("encoded-password");
 
         authService.register(request);
 
         ArgumentCaptor<FintrackUser> userCaptor = ArgumentCaptor.forClass(FintrackUser.class);
 
-        verify(userRepository).save(userCaptor.capture());
+        verify(userRepository).saveAndFlush(userCaptor.capture());
 
         FintrackUser savedUser = userCaptor.getValue();
 
+        assertThat(savedUser).isSameAs(user);
         assertThat(savedUser.getRole()).isEqualTo(Role.USER);
-
-        assertThat(savedUser.getPasswordHash()).isEqualTo("encoded-password").isNotEqualTo(request.getPassword());
+        assertThat(savedUser.getPasswordHash()).isEqualTo("encoded-password");
 
         verify(passwordEncoder).encode("plain-password");
     }

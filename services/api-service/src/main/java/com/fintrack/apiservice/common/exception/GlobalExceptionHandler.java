@@ -2,6 +2,9 @@ package com.fintrack.apiservice.common.exception;
 
 import com.fintrack.apiservice.account.exception.*;
 import com.fintrack.apiservice.auth.refresh.exception.InvalidRefreshTokenException;
+import com.fintrack.apiservice.budget.exception.BudgetAlreadyExistsException;
+import com.fintrack.apiservice.budget.exception.BudgetNotFoundException;
+import com.fintrack.apiservice.budget.exception.BudgetVersionConflictException;
 import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
 import com.fintrack.apiservice.common.dto.ErrorResponse;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
@@ -18,7 +21,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -224,4 +226,31 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
+
+    @ExceptionHandler(BudgetAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleBudgetAlreadyExists(BudgetAlreadyExistsException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(BudgetNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleBudgetNotFound(BudgetNotFoundException exception) {
+        ErrorResponse response = new ErrorResponse(HttpStatus.NOT_FOUND.value(), exception.getMessage(), Map.of());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(BudgetVersionConflictException.class)
+    public ResponseEntity<ErrorResponse> handleBudgetVersionConflict(BudgetVersionConflictException exception) {
+        ErrorResponse response = new ErrorResponse(HttpStatus.CONFLICT.value(), exception.getMessage(), Map.of());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+
 }

@@ -14,6 +14,8 @@ import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
 import com.fintrack.apiservice.user.mapper.FintrackUserMapper;
 import com.fintrack.apiservice.user.repository.FintrackUserRepository;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -21,6 +23,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Locale;
 
 @Service
 public class AuthService {
@@ -51,23 +55,85 @@ public class AuthService {
 
     @Transactional
     public void register(RegisterRequest request) {
-
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new UsernameAlreadyExistsException(request.getUsername());
         }
 
-        if(userRepository.existsByEmail(request.getEmail())){
+        if (userRepository.existsByEmail(request.getEmail())) {
             throw new EmailAlreadyExistsException(request.getEmail());
         }
 
         FintrackUser user = mapper.toEntity(request);
         user.setRole(Role.USER);
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
 
-        user.setPasswordHash(
-                passwordEncoder.encode(request.getPassword())
-        );
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException exception) {
+            if (isUsernameUniqueViolation(exception)) {
+                throw new UsernameAlreadyExistsException(request.getUsername());
+            }
 
-        userRepository.save(user);
+            if (isEmailUniqueViolation(exception)) {
+                throw new EmailAlreadyExistsException(request.getEmail());
+            }
+
+            throw exception;
+        }
+    }
+
+    private boolean isUsernameUniqueViolation(Throwable exception) {
+        return isUniqueViolationFor(exception, "username");
+    }
+
+    private boolean isEmailUniqueViolation(Throwable exception) {
+        return isUniqueViolationFor(exception, "email");
+    }
+
+    private boolean isUniqueViolationFor(Throwable exception, String fieldName) {
+        String constraintName = findConstraintName(exception);
+
+        if (constraintName != null && constraintName.toLowerCase(Locale.ROOT).contains(fieldName)) {
+            return true;
+        }
+
+        Throwable rootCause = findRootCause(exception);
+        String rootMessage = rootCause.getMessage();
+
+        if (rootMessage == null) {
+            return false;
+        }
+
+        String normalizedMessage = rootMessage.toLowerCase(Locale.ROOT);
+
+        return normalizedMessage.contains("duplicate key")
+                && normalizedMessage.contains("key (")
+                && normalizedMessage.contains(fieldName)
+                && normalizedMessage.contains("already exists");
+    }
+
+    private String findConstraintName(Throwable exception) {
+        Throwable current = exception;
+
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolationException) {
+                return constraintViolationException.getConstraintName();
+            }
+
+            current = current.getCause();
+        }
+
+        return null;
+    }
+
+    private Throwable findRootCause(Throwable exception) {
+        Throwable current = exception;
+
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+
+        return current;
     }
 
     public AuthResponse login(LoginRequest request) {
