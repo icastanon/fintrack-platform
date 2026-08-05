@@ -2,17 +2,15 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.0</version>
-		<relativePath/> <!-- lookup parent from repository -->
-	</parent>
-	<groupId>com.fintrack</groupId>
-	<artifactId>api-service</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+    <parent>
+        <groupId>com.fintrack</groupId>
+        <artifactId>fintrack-platform</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+    <artifactId>api-service</artifactId>
+    <name>api-service</name>
+    <description>FinTrack synchronous REST API service</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -112,6 +110,11 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>3.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fintrack</groupId>
+            <artifactId>event-contracts</artifactId>
+            <version>${project.version}</version>
         </dependency>
 	</dependencies>
 
