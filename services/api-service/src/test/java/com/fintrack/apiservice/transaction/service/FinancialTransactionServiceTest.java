@@ -9,6 +9,7 @@ import com.fintrack.apiservice.account.repository.FinancialAccountRepository;
 import com.fintrack.apiservice.category.entity.Category;
 import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
 import com.fintrack.apiservice.category.repository.CategoryRepository;
+import com.fintrack.apiservice.outbox.service.OutboxEventWriter;
 import com.fintrack.apiservice.transaction.dto.*;
 import com.fintrack.apiservice.transaction.entity.FinancialTransaction;
 import com.fintrack.apiservice.transaction.entity.ProcessingStatus;
@@ -60,6 +61,9 @@ class FinancialTransactionServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock
+    private OutboxEventWriter outboxEventWriter;
+
     @InjectMocks
     private FinancialTransactionService transactionService;
 
@@ -74,7 +78,7 @@ class FinancialTransactionServiceTest {
         FinancialTransactionResponse expectedResponse = org.mockito.Mockito.mock(FinancialTransactionResponse.class);
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
-        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        mockTransactionSaveWithId(41L);
         when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(expectedResponse);
 
         FinancialTransactionResponse result = transactionService.createTransaction(7L, request);
@@ -84,6 +88,7 @@ class FinancialTransactionServiceTest {
         FinancialTransaction savedTransaction = transactionCaptor.getValue();
 
         assertThat(result).isSameAs(expectedResponse);
+        assertThat(savedTransaction.getId()).isEqualTo(41L);
         assertThat(savedTransaction.getAccount()).isSameAs(account);
         assertThat(savedTransaction.getTransactionType()).isEqualTo(TransactionType.EXPENSE);
         assertThat(savedTransaction.getAmount()).isEqualByComparingTo("83.42");
@@ -94,10 +99,18 @@ class FinancialTransactionServiceTest {
         assertThat(savedTransaction.getProcessingStatus()).isEqualTo(ProcessingStatus.PENDING);
         assertThat(savedTransaction.getSource()).isEqualTo(TransactionSource.MANUAL);
         assertThat(savedTransaction.isManualCategoryOverride()).isFalse();
-
         assertThat(account.getCurrentBalance()).isEqualByComparingTo("916.58");
 
+        verify(outboxEventWriter).writeTransactionCreated(41L, 7L);
         verify(transactionMapper).toResponse(savedTransaction);
+    }
+
+    private void mockTransactionSaveWithId(Long transactionId) {
+        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> {
+            FinancialTransaction transaction = invocation.getArgument(0);
+            ReflectionTestUtils.setField(transaction, "id", transactionId);
+            return transaction;
+        });
     }
 
     @Test
@@ -106,7 +119,7 @@ class FinancialTransactionServiceTest {
         FinancialTransactionCreateRequest request = createRequest(TransactionType.INCOME, new BigDecimal("250.00"));
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
-        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        mockTransactionSaveWithId(41L);
         when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
 
         transactionService.createTransaction(7L, request);
@@ -115,8 +128,11 @@ class FinancialTransactionServiceTest {
 
         FinancialTransaction savedTransaction = transactionCaptor.getValue();
 
+        assertThat(savedTransaction.getId()).isEqualTo(41L);
         assertThat(savedTransaction.getTransactionType()).isEqualTo(TransactionType.INCOME);
         assertThat(account.getCurrentBalance()).isEqualByComparingTo("1250.00");
+
+        verify(outboxEventWriter).writeTransactionCreated(41L, 7L);
     }
 
     @Test
@@ -128,7 +144,7 @@ class FinancialTransactionServiceTest {
         request.setDescription(null);
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
-        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        mockTransactionSaveWithId(41L);
         when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
 
         transactionService.createTransaction(7L, request);
@@ -137,8 +153,11 @@ class FinancialTransactionServiceTest {
 
         FinancialTransaction savedTransaction = transactionCaptor.getValue();
 
+        assertThat(savedTransaction.getId()).isEqualTo(41L);
         assertThat(savedTransaction.getMerchant()).isNull();
         assertThat(savedTransaction.getDescription()).isNull();
+
+        verify(outboxEventWriter).writeTransactionCreated(41L, 7L);
     }
 
     @Test
@@ -152,6 +171,7 @@ class FinancialTransactionServiceTest {
 
         verify(transactionRepository, never()).save(any(FinancialTransaction.class));
         verifyNoInteractions(transactionMapper);
+        verifyNoInteractions(outboxEventWriter);
     }
 
     @Test
@@ -170,6 +190,7 @@ class FinancialTransactionServiceTest {
 
         verify(transactionRepository, never()).save(any(FinancialTransaction.class));
         verifyNoInteractions(transactionMapper);
+        verifyNoInteractions(outboxEventWriter);
     }
 
     private FinancialTransactionCreateRequest createRequest(TransactionType transactionType, BigDecimal amount) {

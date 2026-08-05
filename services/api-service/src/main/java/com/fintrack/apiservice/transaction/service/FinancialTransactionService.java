@@ -8,6 +8,7 @@ import com.fintrack.apiservice.account.repository.FinancialAccountRepository;
 import com.fintrack.apiservice.category.entity.Category;
 import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
 import com.fintrack.apiservice.category.repository.CategoryRepository;
+import com.fintrack.apiservice.outbox.service.OutboxEventWriter;
 import com.fintrack.apiservice.transaction.dto.*;
 import com.fintrack.apiservice.transaction.entity.FinancialTransaction;
 import com.fintrack.apiservice.transaction.entity.TransactionType;
@@ -34,12 +35,18 @@ public class FinancialTransactionService {
     private final FinancialAccountRepository accountRepository;
     private final FinancialTransactionMapper transactionMapper;
     private final CategoryRepository categoryRepository;
+    private final OutboxEventWriter outboxEventWriter;
 
-    public FinancialTransactionService(FinancialTransactionRepository transactionRepository, FinancialAccountRepository accountRepository, FinancialTransactionMapper transactionMapper, CategoryRepository categoryRepository) {
+    public FinancialTransactionService(FinancialTransactionRepository transactionRepository,
+                                       FinancialAccountRepository accountRepository,
+                                       FinancialTransactionMapper transactionMapper,
+                                       CategoryRepository categoryRepository,
+                                       OutboxEventWriter outboxEventWriter) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
         this.transactionMapper = transactionMapper;
         this.categoryRepository = categoryRepository;
+        this.outboxEventWriter = outboxEventWriter;
     }
 
     @Transactional
@@ -63,6 +70,8 @@ public class FinancialTransactionService {
         applyBalanceChange(account, request.getTransactionType(), request.getAmount());
 
         FinancialTransaction savedTransaction = transactionRepository.save(transaction);
+
+        outboxEventWriter.writeTransactionCreated(transaction.getId(), userId);
 
         return transactionMapper.toResponse(savedTransaction);
     }

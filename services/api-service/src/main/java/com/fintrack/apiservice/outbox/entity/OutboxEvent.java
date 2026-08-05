@@ -1,6 +1,6 @@
 package com.fintrack.apiservice.outbox.entity;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,6 +18,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -25,6 +26,8 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OutboxEvent {
+
+    private static final int MAX_ERROR_LENGTH = 1000;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,7 +50,7 @@ public class OutboxEvent {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
-    private JsonNode payload;
+    private Map<String, Object> payload;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -85,7 +88,7 @@ public class OutboxEvent {
             Long aggregateId,
             String eventType,
             Integer eventVersion,
-            JsonNode payload
+            Map<String, Object> payload
     ) {
         OutboxEvent outboxEvent = new OutboxEvent();
         outboxEvent.eventId = eventId;
@@ -98,5 +101,87 @@ public class OutboxEvent {
         outboxEvent.attemptCount = 0;
         outboxEvent.availableAt = Instant.now();
         return outboxEvent;
+    }
+
+    public void claim(String lockOwner, Instant lockedAt) {
+        if (status != OutboxEventStatus.PENDING) {
+            throw new IllegalStateException("Only pending outbox events can be claimed");
+        }
+
+        if (lockOwner == null || lockOwner.isBlank()) {
+            throw new IllegalArgumentException("Lock owner is required");
+        }
+
+        this.status = OutboxEventStatus.PROCESSING;
+        this.lockOwner = lockOwner;
+        this.lockedAt = Objects.requireNonNull(lockedAt, "Locked at is required");
+        this.attemptCount++;
+    }
+
+    public void markPublished(String lockOwner, Instant publishedAt) {
+        validateClaimOwner(lockOwner);
+
+        this.status = OutboxEventStatus.PUBLISHED;
+        this.publishedAt = Objects.requireNonNull(publishedAt, "Published at is required");
+        this.lockedAt = null;
+        this.lockOwner = null;
+        this.lastError = null;
+    }
+
+    public void rescheduleAfterFailure(String lockOwner, Instant availableAt, String lastError) {
+        validateClaimOwner(lockOwner);
+
+        this.status = OutboxEventStatus.PENDING;
+        this.availableAt = Objects.requireNonNull(availableAt, "Available at is required");
+        this.lockedAt = null;
+        this.lockOwner = null;
+        this.lastError = normalizeError(lastError);
+    }
+
+    public void markFailed(String lockOwner, String lastError) {
+        validateClaimOwner(lockOwner);
+
+        this.status = OutboxEventStatus.FAILED;
+        this.lockedAt = null;
+        this.lockOwner = null;
+        this.lastError = normalizeError(lastError);
+    }
+
+    public void recoverStaleClaim(Instant availableAt) {
+        if (status != OutboxEventStatus.PROCESSING) {
+            throw new IllegalStateException("Only processing outbox events can be recovered");
+        }
+
+        this.status = OutboxEventStatus.PENDING;
+        this.availableAt = Objects.requireNonNull(availableAt, "Available at is required");
+        this.lockedAt = null;
+        this.lockOwner = null;
+        this.lastError = "Recovered stale relay claim";
+    }
+
+    private void validateClaimOwner(String requestedLockOwner) {
+        if (status != OutboxEventStatus.PROCESSING) {
+            throw new IllegalStateException("Outbox event is not being processed");
+        }
+
+        if (requestedLockOwner == null || requestedLockOwner.isBlank()) {
+            throw new IllegalArgumentException("Lock owner is required");
+        }
+
+        if (!Objects.equals(lockOwner, requestedLockOwner)) {
+            throw new IllegalStateException("Outbox event is owned by another relay");
+        }
+    }
+
+    private String normalizeError(String error) {
+        String normalizedError = error == null || error.isBlank()
+                ? "Unknown publication failure"
+                : error.trim();
+
+        if (normalizedError.length() <= MAX_ERROR_LENGTH) {
+            return normalizedError;
+        }
+
+        return normalizedError.substring(0, MAX_ERROR_LENGTH);
     }
 }
