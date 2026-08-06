@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:17
-
     container_name: fintrack-postgres
 
     environment:
@@ -10,10 +9,20 @@ services:
       POSTGRES_PASSWORD: fintrack
 
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:2026.07.2
+    container_name: fintrack-localstack
+
+    ports:
+      - "127.0.0.1:4566:4566"
+
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?LOCALSTACK_AUTH_TOKEN is required}
 
 volumes:
   postgres-data:
