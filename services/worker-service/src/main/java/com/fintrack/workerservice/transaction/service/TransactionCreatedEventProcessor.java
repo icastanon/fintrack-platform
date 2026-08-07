@@ -2,6 +2,9 @@ package com.fintrack.workerservice.transaction.service;
 
 import com.fintrack.eventcontracts.TransactionCreatedEvent;
 import com.fintrack.workerservice.idempotency.service.ProcessedMessageService;
+import com.fintrack.workerservice.transaction.entity.FinancialTransaction;
+import com.fintrack.workerservice.transaction.exception.FinancialTransactionNotFoundException;
+import com.fintrack.workerservice.transaction.repository.FinancialTransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -10,15 +13,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TransactionCreatedEventProcessor {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TransactionCreatedEventProcessor.class);
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(TransactionCreatedEventProcessor.class);
 
-    private static final String CONSUMER_NAME = "transaction-created-processor";
-    private static final String EVENT_TYPE = "TRANSACTION_CREATED";
+    private static final String CONSUMER_NAME =
+            "transaction-created-processor";
+
+    private static final String EVENT_TYPE =
+            "TRANSACTION_CREATED";
 
     private final ProcessedMessageService processedMessageService;
+    private final FinancialTransactionRepository financialTransactionRepository;
 
-    public TransactionCreatedEventProcessor(ProcessedMessageService processedMessageService) {
+    public TransactionCreatedEventProcessor(ProcessedMessageService processedMessageService,
+                                            FinancialTransactionRepository financialTransactionRepository) {
         this.processedMessageService = processedMessageService;
+        this.financialTransactionRepository = financialTransactionRepository;
     }
 
     @Transactional
@@ -39,17 +49,18 @@ public class TransactionCreatedEventProcessor {
             return false;
         }
 
-        LOGGER.info(
-                "Registered transaction-created event for processing: eventId={}",
-                event.getEventId()
-        );
+        FinancialTransaction transaction = financialTransactionRepository
+                .findByIdAndUserId(event.getTransactionId(), event.getUserId())
+                .orElseThrow(() ->
+                        new FinancialTransactionNotFoundException(event.getTransactionId(), event.getUserId())
+                );
 
-        /*
-         * Future business operations will be added here.
-         *
-         * Because this method owns the transaction, the processed_message
-         * marker and all business changes will commit or roll back together.
-         */
+        LOGGER.info(
+                "Loaded transaction for processing: eventId={}, transactionId={}, processingStatus={}",
+                event.getEventId(),
+                transaction.getId(),
+                transaction.getProcessingStatus()
+        );
 
         return true;
     }
