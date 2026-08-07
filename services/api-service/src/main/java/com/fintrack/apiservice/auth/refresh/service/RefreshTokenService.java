@@ -56,33 +56,22 @@ public class RefreshTokenService {
 
     public String hashToken(String rawToken) {
         try {
-            MessageDigest digest =
-                    MessageDigest.getInstance("SHA-256");
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
 
-            byte[] hash = digest.digest(
-                    rawToken.getBytes(
-                            java.nio.charset.StandardCharsets.UTF_8
-                    )
-            );
+            byte[] hash = digest.digest(rawToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(
-                    "SHA-256 is unavailable",
-                    exception
-            );
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
     }
 
     private String generateRawToken() {
-        byte[] randomBytes =
-                new byte[TOKEN_LENGTH_BYTES];
+        byte[] randomBytes = new byte[TOKEN_LENGTH_BYTES];
 
         secureRandom.nextBytes(randomBytes);
 
-        return Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
     @Transactional
@@ -90,8 +79,7 @@ public class RefreshTokenService {
         String tokenHash = hashToken(rawToken);
 
         RefreshToken existingToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash).orElseThrow(
-                                                                InvalidRefreshTokenException::new
-                                                            );
+                                                                InvalidRefreshTokenException::new);
 
         Instant now = Instant.now();
 
