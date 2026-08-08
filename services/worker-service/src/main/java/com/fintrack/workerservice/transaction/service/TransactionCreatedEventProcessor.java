@@ -1,6 +1,7 @@
 package com.fintrack.workerservice.transaction.service;
 
 import com.fintrack.eventcontracts.TransactionCreatedEvent;
+import com.fintrack.workerservice.category.service.CategorizationService;
 import com.fintrack.workerservice.idempotency.service.ProcessedMessageService;
 import com.fintrack.workerservice.transaction.entity.FinancialTransaction;
 import com.fintrack.workerservice.transaction.exception.FinancialTransactionNotFoundException;
@@ -24,11 +25,14 @@ public class TransactionCreatedEventProcessor {
 
     private final ProcessedMessageService processedMessageService;
     private final FinancialTransactionRepository financialTransactionRepository;
+    private final CategorizationService categorizationService;
 
     public TransactionCreatedEventProcessor(ProcessedMessageService processedMessageService,
-                                            FinancialTransactionRepository financialTransactionRepository) {
+                                            FinancialTransactionRepository financialTransactionRepository,
+                                            CategorizationService categorizationService) {
         this.processedMessageService = processedMessageService;
         this.financialTransactionRepository = financialTransactionRepository;
+        this.categorizationService = categorizationService;
     }
 
     @Transactional
@@ -55,10 +59,20 @@ public class TransactionCreatedEventProcessor {
                         new FinancialTransactionNotFoundException(event.getTransactionId(), event.getUserId())
                 );
 
+        if (!transaction.isManualCategoryOverride()) {
+            Long categoryId = categorizationService.categorizeMerchant(transaction.getMerchant());
+
+            transaction.assignAutomaticCategory(categoryId);
+        }
+
+        transaction.markProcessed();
+
         LOGGER.info(
-                "Loaded transaction for processing: eventId={}, transactionId={}, processingStatus={}",
+                "Processed transaction-created event: eventId={}, transactionId={}, categoryId={}, manualCategoryOverride={}, processingStatus={}",
                 event.getEventId(),
                 transaction.getId(),
+                transaction.getCategoryId(),
+                transaction.isManualCategoryOverride(),
                 transaction.getProcessingStatus()
         );
 
