@@ -225,7 +225,6 @@ class FinancialTransactionServiceTest {
         account.setId(15L);
         account.setName("Primary Checking");
         account.setAccountType(AccountType.CHECKING);
-        account.setCurrency("USD");
         account.setOpeningBalance(currentBalance);
         account.setCurrentBalance(currentBalance);
         account.setStatus(AccountStatus.ACTIVE);

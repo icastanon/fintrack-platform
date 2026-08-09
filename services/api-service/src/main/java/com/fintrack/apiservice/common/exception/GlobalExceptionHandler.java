@@ -125,17 +125,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
-    @ExceptionHandler(InvalidCurrencyException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidCurrency(InvalidCurrencyException exception) {
-        ErrorResponse response = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                exception.getMessage(),
-                Map.of()
-        );
-
-        return ResponseEntity.badRequest().body(response);
-    }
-
     @ExceptionHandler(FinancialAccountNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleFinancialAccountNotFound(FinancialAccountNotFoundException exception) {
         ErrorResponse response = new ErrorResponse(

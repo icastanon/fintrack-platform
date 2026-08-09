@@ -31,6 +31,10 @@ public class FintrackUser {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "currency", nullable = false, length = 3)
+    private SupportedCurrency currency;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "user_role", nullable = false, length = 20)
     private Role role;
 

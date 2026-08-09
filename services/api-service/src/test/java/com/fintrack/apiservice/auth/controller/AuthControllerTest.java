@@ -11,6 +11,7 @@ import com.fintrack.apiservice.auth.security.RestAuthenticationEntryPoint;
 import com.fintrack.apiservice.auth.security.SecurityConfig;
 import com.fintrack.apiservice.auth.service.AuthService;
 import com.fintrack.apiservice.common.exception.GlobalExceptionHandler;
+import com.fintrack.apiservice.user.entity.SupportedCurrency;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,8 @@ class AuthControllerTest {
                                         {
                                           "username": "ivan",
                                           "email": "ivan@example.com",
-                                          "password": "plain-password"
+                                          "password": "plain-password",
+                                          "currency": "USD"
                                         }
                                         """)
                 )
@@ -83,6 +85,8 @@ class AuthControllerTest {
         assertThat(capturedRequest.getEmail()).isEqualTo("ivan@example.com");
 
         assertThat(capturedRequest.getPassword()).isEqualTo("plain-password");
+
+        assertThat(capturedRequest.getCurrency()).isEqualTo(SupportedCurrency.USD);
     }
 
     @Test
@@ -116,7 +120,8 @@ class AuthControllerTest {
                                         {
                                           "username": "ivan",
                                           "email": "ivan@example.com",
-                                          "password": "plain-password"
+                                          "password": "plain-password",
+                                          "currency": "USD"
                                         }
                                         """)
                 )
@@ -145,7 +150,8 @@ class AuthControllerTest {
                                         {
                                           "username": "ivan",
                                           "email": "ivan@example.com",
-                                          "password": "plain-password"
+                                          "password": "plain-password",
+                                          "currency": "USD"
                                         }
                                         """)
                 )

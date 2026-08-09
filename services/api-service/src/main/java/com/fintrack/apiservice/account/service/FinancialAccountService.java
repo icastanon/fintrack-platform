@@ -21,8 +21,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Currency;
-import java.util.Locale;
 import java.util.Objects;
 
 @Service
@@ -46,14 +44,9 @@ public class FinancialAccountService {
     @Transactional
     public FinancialAccountResponse createAccount(Long userId, FinancialAccountCreateRequest request) {
         FintrackUser user = userRepository.findById(userId)
-                .orElseThrow(() ->
-                        new FintrackUserNotFoundException(userId)
-                );
+                .orElseThrow(() -> new FintrackUserNotFoundException(userId));
 
         String normalizedName = request.getName().trim();
-        String normalizedCurrency = request.getCurrency().trim().toUpperCase(Locale.ROOT);
-
-        validateCurrency(normalizedCurrency);
 
         if (accountRepository.existsByUserIdAndNameIgnoreCase(userId, normalizedName)) {
             throw new AccountNameAlreadyExistsException(normalizedName);
@@ -63,7 +56,6 @@ public class FinancialAccountService {
         account.setUser(user);
         account.setName(normalizedName);
         account.setAccountType(request.getAccountType());
-        account.setCurrency(normalizedCurrency);
         account.setOpeningBalance(request.getOpeningBalance());
         account.setCurrentBalance(request.getOpeningBalance());
         account.setStatus(AccountStatus.ACTIVE);
@@ -78,14 +70,6 @@ public class FinancialAccountService {
             }
 
             throw exception;
-        }
-    }
-
-    private void validateCurrency(String currencyCode) {
-        try {
-            Currency.getInstance(currencyCode);
-        } catch (IllegalArgumentException exception) {
-            throw new InvalidCurrencyException(currencyCode);
         }
     }
 

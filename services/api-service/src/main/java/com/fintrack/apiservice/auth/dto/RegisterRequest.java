@@ -1,7 +1,9 @@
 package com.fintrack.apiservice.auth.dto;
 
+import com.fintrack.apiservice.user.entity.SupportedCurrency;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
@@ -16,4 +18,7 @@ public class RegisterRequest {
 
     @NotBlank(message = "Password is required")
     private String password;
+
+    @NotNull(message = "Currency is required")
+    private SupportedCurrency currency;
 }

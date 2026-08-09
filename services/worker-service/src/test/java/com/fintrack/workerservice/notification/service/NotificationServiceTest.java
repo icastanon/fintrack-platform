@@ -5,6 +5,8 @@ import com.fintrack.workerservice.budget.model.BudgetStatus;
 import com.fintrack.workerservice.category.entity.Category;
 import com.fintrack.workerservice.category.repository.CategoryRepository;
 import com.fintrack.workerservice.notification.repository.NotificationRepository;
+import com.fintrack.workerservice.user.entity.FintrackUser;
+import com.fintrack.workerservice.user.repository.FintrackUserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -30,7 +32,13 @@ class NotificationServiceTest {
     private CategoryRepository categoryRepository;
 
     @Mock
+    private FintrackUserRepository userRepository;
+
+    @Mock
     private Category category;
+
+    @Mock
+    private FintrackUser user;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -53,7 +61,7 @@ class NotificationServiceTest {
 
         assertThat(created).isFalse();
 
-        verifyNoInteractions(categoryRepository, notificationRepository);
+        verifyNoInteractions(userRepository, categoryRepository, notificationRepository);
     }
 
     @Test
@@ -64,8 +72,11 @@ class NotificationServiceTest {
                 BudgetStatus.WARNING
         );
 
+        when(userRepository.findById(25L)).thenReturn(Optional.of(user));
+        when(user.getCurrency()).thenReturn("EUR");
         when(categoryRepository.findById(4L)).thenReturn(Optional.of(category));
         when(category.getName()).thenReturn("Groceries");
+
         when(notificationRepository.insertIfAbsent(
                 25L,
                 10L,
@@ -75,7 +86,8 @@ class NotificationServiceTest {
                 "WARNING",
                 new BigDecimal("100.00"),
                 new BigDecimal("80.00"),
-                "Groceries spending reached the warning level for August 2026, with $80.00 spent against a $100.00 budget."
+                "EUR",
+                "Groceries spending reached the warning level for August 2026, with 80.00 EUR spent against a 100.00 EUR budget."
         )).thenReturn(1);
 
         boolean created = notificationService.createIfRequired(
@@ -88,6 +100,7 @@ class NotificationServiceTest {
 
         assertThat(created).isTrue();
 
+        verify(userRepository).findById(25L);
         verify(categoryRepository).findById(4L);
         verify(notificationRepository).insertIfAbsent(
                 25L,
@@ -98,7 +111,8 @@ class NotificationServiceTest {
                 "WARNING",
                 new BigDecimal("100.00"),
                 new BigDecimal("80.00"),
-                "Groceries spending reached the warning level for August 2026, with $80.00 spent against a $100.00 budget."
+                "EUR",
+                "Groceries spending reached the warning level for August 2026, with 80.00 EUR spent against a 100.00 EUR budget."
         );
     }
 
@@ -110,8 +124,11 @@ class NotificationServiceTest {
                 BudgetStatus.EXCEEDED
         );
 
+        when(userRepository.findById(25L)).thenReturn(Optional.of(user));
+        when(user.getCurrency()).thenReturn("GBP");
         when(categoryRepository.findById(4L)).thenReturn(Optional.of(category));
         when(category.getName()).thenReturn("Groceries");
+
         when(notificationRepository.insertIfAbsent(
                 25L,
                 10L,
@@ -121,7 +138,8 @@ class NotificationServiceTest {
                 "EXCEEDED",
                 new BigDecimal("100.00"),
                 new BigDecimal("120.00"),
-                "Groceries spending reached its budget limit for August 2026, with $120.00 spent against a $100.00 budget."
+                "GBP",
+                "Groceries spending reached its budget limit for August 2026, with 120.00 GBP spent against a 100.00 GBP budget."
         )).thenReturn(1);
 
         boolean created = notificationService.createIfRequired(
@@ -143,7 +161,8 @@ class NotificationServiceTest {
                 "EXCEEDED",
                 new BigDecimal("100.00"),
                 new BigDecimal("120.00"),
-                "Groceries spending reached its budget limit for August 2026, with $120.00 spent against a $100.00 budget."
+                "GBP",
+                "Groceries spending reached its budget limit for August 2026, with 120.00 GBP spent against a 100.00 GBP budget."
         );
     }
 
@@ -155,8 +174,11 @@ class NotificationServiceTest {
                 BudgetStatus.WARNING
         );
 
+        when(userRepository.findById(25L)).thenReturn(Optional.of(user));
+        when(user.getCurrency()).thenReturn("EUR");
         when(categoryRepository.findById(4L)).thenReturn(Optional.of(category));
         when(category.getName()).thenReturn("Groceries");
+
         when(notificationRepository.insertIfAbsent(
                 25L,
                 10L,
@@ -166,7 +188,8 @@ class NotificationServiceTest {
                 "WARNING",
                 new BigDecimal("100.00"),
                 new BigDecimal("90.00"),
-                "Groceries spending reached the warning level for August 2026, with $90.00 spent against a $100.00 budget."
+                "EUR",
+                "Groceries spending reached the warning level for August 2026, with 90.00 EUR spent against a 100.00 EUR budget."
         )).thenReturn(0);
 
         boolean created = notificationService.createIfRequired(
@@ -188,7 +211,8 @@ class NotificationServiceTest {
                 "WARNING",
                 new BigDecimal("100.00"),
                 new BigDecimal("90.00"),
-                "Groceries spending reached the warning level for August 2026, with $90.00 spent against a $100.00 budget."
+                "EUR",
+                "Groceries spending reached the warning level for August 2026, with 90.00 EUR spent against a 100.00 EUR budget."
         );
     }
 

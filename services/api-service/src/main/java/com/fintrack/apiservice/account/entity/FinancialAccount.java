@@ -33,9 +33,6 @@ public class FinancialAccount {
     @Column(name = "account_type", nullable = false, length = 30)
     private AccountType accountType;
 
-    @Column(name = "currency", nullable = false, length = 3)
-    private String currency;
-
     @Column(name = "opening_balance", nullable = false, precision = 19, scale = 2)
     private BigDecimal openingBalance;
 

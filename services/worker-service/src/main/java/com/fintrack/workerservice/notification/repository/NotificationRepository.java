@@ -22,6 +22,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                 notification_type,
                 budget_amount,
                 spent_amount,
+                currency,
                 message
             )
             VALUES (
@@ -33,6 +34,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                 :notificationType,
                 :budgetAmount,
                 :spentAmount,
+                :currency,
                 :message
             )
             ON CONFLICT ON CONSTRAINT uq_notification_threshold
@@ -47,6 +49,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("notificationType") String notificationType,
             @Param("budgetAmount") BigDecimal budgetAmount,
             @Param("spentAmount") BigDecimal spentAmount,
+            @Param("currency") String currency,
             @Param("message") String message
     );
 }

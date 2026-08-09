@@ -4,7 +4,6 @@ import com.fintrack.apiservice.account.entity.AccountType;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -20,15 +19,8 @@ public class FinancialAccountCreateRequest {
     @NotNull(message = "Account type is required")
     private AccountType accountType;
 
-    @NotBlank(message = "Currency is required")
-    @Pattern(regexp = "^[A-Za-z]{3}$", message = "Currency must contain exactly three letters")
-    private String currency;
-
     @NotNull(message = "Opening balance is required")
-    @Digits(
-            integer = 17,
-            fraction = 2,
-            message = "Opening balance must have at most 17 integer digits and 2 decimal places"
-    )
+    @Digits(integer = 17, fraction = 2,
+            message = "Opening balance must have at most 17 integer digits and 2 decimal places")
     private BigDecimal openingBalance;
 }

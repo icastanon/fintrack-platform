@@ -14,8 +14,8 @@ import com.fintrack.apiservice.account.mapper.FinancialAccountMapper;
 import com.fintrack.apiservice.account.repository.FinancialAccountRepository;
 import com.fintrack.apiservice.common.dto.PageResponse;
 import com.fintrack.apiservice.user.entity.FintrackUser;
+import com.fintrack.apiservice.user.entity.SupportedCurrency;
 import com.fintrack.apiservice.user.repository.FintrackUserRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -60,21 +60,18 @@ class FinancialAccountServiceTest {
 
         FintrackUser user = new FintrackUser();
         user.setId(userId);
+        user.setCurrency(SupportedCurrency.EUR);
 
         FinancialAccountCreateRequest request = new FinancialAccountCreateRequest();
-
         request.setName("  Main Checking  ");
         request.setAccountType(AccountType.CHECKING);
-        request.setCurrency("usd");
         request.setOpeningBalance(new BigDecimal("2500.00"));
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-
         when(accountRepository.existsByUserIdAndNameIgnoreCase(userId, "Main Checking")).thenReturn(false);
 
         when(accountRepository.saveAndFlush(any(FinancialAccount.class))).thenAnswer(invocation -> {
             FinancialAccount account = invocation.getArgument(0);
-
             account.setId(100L);
             account.setVersion(0L);
 
@@ -90,23 +87,14 @@ class FinancialAccountServiceTest {
         FinancialAccount savedAccount = accountCaptor.getValue();
 
         assertThat(savedAccount.getUser()).isSameAs(user);
-
         assertThat(savedAccount.getName()).isEqualTo("Main Checking");
-
-        assertThat(savedAccount.getCurrency()).isEqualTo("USD");
-
         assertThat(savedAccount.getOpeningBalance()).isEqualByComparingTo("2500.00");
-
         assertThat(savedAccount.getCurrentBalance()).isEqualByComparingTo("2500.00");
-
         assertThat(savedAccount.getStatus()).isEqualTo(AccountStatus.ACTIVE);
 
         assertThat(response.getId()).isEqualTo(100L);
-
         assertThat(response.getName()).isEqualTo("Main Checking");
-
-        assertThat(response.getCurrency()).isEqualTo("USD");
-
+        assertThat(response.getCurrency()).isEqualTo("EUR");
         assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
     }
 
@@ -116,24 +104,19 @@ class FinancialAccountServiceTest {
 
         FintrackUser user = new FintrackUser();
         user.setId(userId);
+        user.setCurrency(SupportedCurrency.USD);
 
         FinancialAccountCreateRequest request = new FinancialAccountCreateRequest();
-
         request.setName("Checking");
         request.setAccountType(AccountType.CHECKING);
-        request.setCurrency("USD");
         request.setOpeningBalance(new BigDecimal("500.00"));
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-
         when(accountRepository.existsByUserIdAndNameIgnoreCase(userId, "Checking")).thenReturn(true);
 
-        assertThatThrownBy(() ->
-                accountService.createAccount(
-                        userId,
-                        request
-                )
-        ).isInstanceOf(AccountNameAlreadyExistsException.class).hasMessageContaining("Checking");
+        assertThatThrownBy(() -> accountService.createAccount(userId, request))
+                .isInstanceOf(AccountNameAlreadyExistsException.class)
+                .hasMessageContaining("Checking");
 
         verify(accountRepository, never()).saveAndFlush(any(FinancialAccount.class));
     }
@@ -147,31 +130,28 @@ class FinancialAccountServiceTest {
         account.setId(accountId);
         account.setName("Main Checking");
         account.setAccountType(AccountType.CHECKING);
-        account.setCurrency("USD");
+        attachOwner(account, userId, SupportedCurrency.USD);
         account.setOpeningBalance(new BigDecimal("2500.00"));
         account.setCurrentBalance(new BigDecimal("2500.00"));
         account.setStatus(AccountStatus.ACTIVE);
         account.setVersion(3L);
 
         FinancialAccountUpdateRequest request = new FinancialAccountUpdateRequest();
-
         request.setName("  Primary Checking  ");
         request.setAccountType(AccountType.SAVINGS);
         request.setVersion(3L);
 
         when(accountRepository.findByIdAndUserId(accountId, userId)).thenReturn(Optional.of(account));
-
         when(accountRepository.existsByUserIdAndNameIgnoreCase(userId, "Primary Checking")).thenReturn(false);
 
         FinancialAccountResponse response = accountService.updateAccount(userId, accountId, request);
 
         assertThat(account.getName()).isEqualTo("Primary Checking");
-
         assertThat(account.getAccountType()).isEqualTo(AccountType.SAVINGS);
 
         assertThat(response.getName()).isEqualTo("Primary Checking");
-
         assertThat(response.getAccountType()).isEqualTo(AccountType.SAVINGS);
+        assertThat(response.getCurrency()).isEqualTo("USD");
 
         verify(accountRepository).flush();
     }
@@ -189,16 +169,14 @@ class FinancialAccountServiceTest {
         account.setVersion(4L);
 
         FinancialAccountUpdateRequest request = new FinancialAccountUpdateRequest();
-
         request.setName("Primary Checking");
         request.setAccountType(AccountType.CHECKING);
         request.setVersion(3L);
 
         when(accountRepository.findByIdAndUserId(accountId, userId)).thenReturn(Optional.of(account));
 
-        assertThatThrownBy(() -> accountService.updateAccount(userId, accountId, request)).isInstanceOf(
-                FinancialAccountVersionConflictException.class
-        );
+        assertThatThrownBy(() -> accountService.updateAccount(userId, accountId, request))
+                .isInstanceOf(FinancialAccountVersionConflictException.class);
 
         verify(accountRepository, never()).flush();
     }
@@ -216,14 +194,14 @@ class FinancialAccountServiceTest {
         account.setVersion(2L);
 
         FinancialAccountUpdateRequest request = new FinancialAccountUpdateRequest();
-
         request.setName("Primary Checking");
         request.setAccountType(AccountType.SAVINGS);
         request.setVersion(2L);
 
         when(accountRepository.findByIdAndUserId(accountId, userId)).thenReturn(Optional.of(account));
 
-        assertThatThrownBy(() -> accountService.updateAccount(userId, accountId, request)).isInstanceOf(FinancialAccountClosedException.class);
+        assertThatThrownBy(() -> accountService.updateAccount(userId, accountId, request))
+                .isInstanceOf(FinancialAccountClosedException.class);
 
         verify(accountRepository, never()).flush();
     }
@@ -236,29 +214,24 @@ class FinancialAccountServiceTest {
         account.setId(100L);
         account.setName("Main Checking");
         account.setAccountType(AccountType.CHECKING);
-        account.setCurrency("USD");
+        attachOwner(account, userId, SupportedCurrency.USD);
         account.setOpeningBalance(new BigDecimal("2500.00"));
         account.setCurrentBalance(new BigDecimal("2500.00"));
         account.setStatus(AccountStatus.ACTIVE);
         account.setVersion(0L);
 
-        when(accountRepository.findAllByUserId(eq(userId),
-                any(Pageable.class)
-        )).thenAnswer(invocation -> {
-            Pageable pageable = invocation.getArgument(1);
+        when(accountRepository.findAllByUserId(eq(userId), any(Pageable.class)))
+                .thenAnswer(invocation -> {
+                    Pageable pageable = invocation.getArgument(1);
 
-            return new PageImpl<>(
-                    List.of(account),
-                    pageable,
-                    1
-            );
-        });
+                    return new PageImpl<>(List.of(account), pageable, 1);
+                });
 
         PageResponse<FinancialAccountResponse> response = accountService.getAccounts(userId, 0, 20);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().getFirst().getId()).isEqualTo(100L);
-
+        assertThat(response.getContent().getFirst().getCurrency()).isEqualTo("USD");
         assertThat(response.getPage()).isZero();
         assertThat(response.getSize()).isEqualTo(20);
         assertThat(response.getTotalElements()).isEqualTo(1);
@@ -290,21 +263,19 @@ class FinancialAccountServiceTest {
         account.setId(accountId);
         account.setName("Main Checking");
         account.setAccountType(AccountType.CHECKING);
-        account.setCurrency("USD");
+        attachOwner(account, userId, SupportedCurrency.USD);
         account.setOpeningBalance(new BigDecimal("2500.00"));
         account.setCurrentBalance(new BigDecimal("2500.00"));
         account.setStatus(AccountStatus.ACTIVE);
         account.setVersion(0L);
 
-        when(accountRepository.findByIdAndUserId(
-                accountId,
-                userId
-        )).thenReturn(Optional.of(account));
+        when(accountRepository.findByIdAndUserId(accountId, userId)).thenReturn(Optional.of(account));
 
         FinancialAccountResponse response = accountService.getAccount(userId, accountId);
 
         assertThat(response.getId()).isEqualTo(accountId);
         assertThat(response.getName()).isEqualTo("Main Checking");
+        assertThat(response.getCurrency()).isEqualTo("USD");
 
         verify(accountRepository).findByIdAndUserId(accountId, userId);
     }
@@ -314,13 +285,10 @@ class FinancialAccountServiceTest {
         Long requestingUserId = 8L;
         Long accountId = 100L;
 
-        when(accountRepository.findByIdAndUserId(
-                accountId,
-                requestingUserId
-        )).thenReturn(Optional.empty());
+        when(accountRepository.findByIdAndUserId(accountId, requestingUserId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> accountService.getAccount(requestingUserId, accountId)
-        ).isInstanceOf(FinancialAccountNotFoundException.class);
+        assertThatThrownBy(() -> accountService.getAccount(requestingUserId, accountId))
+                .isInstanceOf(FinancialAccountNotFoundException.class);
 
         verify(accountRepository).findByIdAndUserId(accountId, requestingUserId);
     }
@@ -334,22 +302,19 @@ class FinancialAccountServiceTest {
         account.setId(accountId);
         account.setName("Main Checking");
         account.setAccountType(AccountType.CHECKING);
-        account.setCurrency("USD");
+        attachOwner(account, userId, SupportedCurrency.USD);
         account.setOpeningBalance(new BigDecimal("2500.00"));
         account.setCurrentBalance(new BigDecimal("2500.00"));
         account.setStatus(AccountStatus.ACTIVE);
         account.setVersion(2L);
 
-        when(accountRepository.findByIdAndUserId(
-                accountId,
-                userId
-        )).thenReturn(Optional.of(account));
+        when(accountRepository.findByIdAndUserId(accountId, userId)).thenReturn(Optional.of(account));
 
         FinancialAccountResponse response = accountService.closeAccount(userId, accountId);
 
         assertThat(account.getStatus()).isEqualTo(AccountStatus.CLOSED);
-
         assertThat(response.getStatus()).isEqualTo(AccountStatus.CLOSED);
+        assertThat(response.getCurrency()).isEqualTo("USD");
 
         verify(accountRepository).flush();
     }
@@ -363,23 +328,28 @@ class FinancialAccountServiceTest {
         account.setId(accountId);
         account.setName("Main Checking");
         account.setAccountType(AccountType.CHECKING);
-        account.setCurrency("USD");
+        attachOwner(account, userId, SupportedCurrency.USD);
         account.setOpeningBalance(new BigDecimal("2500.00"));
         account.setCurrentBalance(new BigDecimal("2500.00"));
         account.setStatus(AccountStatus.CLOSED);
         account.setVersion(3L);
 
-        when(accountRepository.findByIdAndUserId(
-                accountId,
-                userId
-        )).thenReturn(Optional.of(account));
+        when(accountRepository.findByIdAndUserId(accountId, userId)).thenReturn(Optional.of(account));
 
         FinancialAccountResponse response = accountService.closeAccount(userId, accountId);
 
         assertThat(response.getStatus()).isEqualTo(AccountStatus.CLOSED);
-
+        assertThat(response.getCurrency()).isEqualTo("USD");
         assertThat(response.getVersion()).isEqualTo(3L);
 
         verify(accountRepository, never()).flush();
+    }
+
+    private void attachOwner(FinancialAccount account, Long userId, SupportedCurrency currency) {
+        FintrackUser user = new FintrackUser();
+        user.setId(userId);
+        user.setCurrency(currency);
+
+        account.setUser(user);
     }
 }

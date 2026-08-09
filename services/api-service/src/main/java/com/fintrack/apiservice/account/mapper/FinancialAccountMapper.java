@@ -13,7 +13,7 @@ public class FinancialAccountMapper {
         response.setId(account.getId());
         response.setName(account.getName());
         response.setAccountType(account.getAccountType());
-        response.setCurrency(account.getCurrency());
+        response.setCurrency(account.getUser().getCurrency().name());
         response.setOpeningBalance(account.getOpeningBalance());
         response.setCurrentBalance(account.getCurrentBalance());
         response.setStatus(account.getStatus());

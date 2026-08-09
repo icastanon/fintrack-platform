@@ -17,6 +17,7 @@ public class FintrackUserMapper {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setCreatedAt(LocalDateTime.now());
+        user.setCurrency(request.getCurrency());
 
         return user;
     }
@@ -26,6 +27,7 @@ public class FintrackUserMapper {
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
+                user.getCurrency(),
                 user.getRole(),
                 user.getCreatedAt()
         );

@@ -71,13 +71,11 @@ class FinancialAccountControllerTest {
 
     @Test
     void createAccountReturnsCreatedAndUsesAuthenticatedUserId() throws Exception {
-
         FinancialAccountResponse serviceResponse = new FinancialAccountResponse();
-
         serviceResponse.setId(100L);
         serviceResponse.setName("Main Checking");
         serviceResponse.setAccountType(AccountType.CHECKING);
-        serviceResponse.setCurrency("USD");
+        serviceResponse.setCurrency("EUR");
         serviceResponse.setOpeningBalance(new BigDecimal("2500.00"));
         serviceResponse.setCurrentBalance(new BigDecimal("2500.00"));
         serviceResponse.setStatus(AccountStatus.ACTIVE);
@@ -87,91 +85,68 @@ class FinancialAccountControllerTest {
 
         mockMvc.perform(
                         post("/api/v1/accounts")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
-                                        {
-                                          "name": "Main Checking",
-                                          "accountType": "CHECKING",
-                                          "currency": "USD",
-                                          "openingBalance": 2500.00
-                                        }
-                                        """)
+                                    {
+                                      "name": "Main Checking",
+                                      "accountType": "CHECKING",
+                                      "openingBalance": 2500.00
+                                    }
+                                    """)
                 )
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(100))
-                .andExpect(
-                        jsonPath("$.name")
-                                .value("Main Checking")
-                )
-                .andExpect(
-                        jsonPath("$.accountType")
-                                .value("CHECKING")
-                )
-                .andExpect(
-                        jsonPath("$.currency")
-                                .value("USD")
-                )
-                .andExpect(
-                        jsonPath("$.status")
-                                .value("ACTIVE")
-                )
+                .andExpect(jsonPath("$.name").value("Main Checking"))
+                .andExpect(jsonPath("$.accountType").value("CHECKING"))
+                .andExpect(jsonPath("$.currency").value("EUR"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.version").value(0));
 
-        ArgumentCaptor<FinancialAccountCreateRequest> requestCaptor = ArgumentCaptor.forClass(FinancialAccountCreateRequest.class);
+        ArgumentCaptor<FinancialAccountCreateRequest> requestCaptor =
+                ArgumentCaptor.forClass(FinancialAccountCreateRequest.class);
 
         verify(accountService).createAccount(eq(7L), requestCaptor.capture());
 
         FinancialAccountCreateRequest capturedRequest = requestCaptor.getValue();
 
         assertThat(capturedRequest.getName()).isEqualTo("Main Checking");
-
         assertThat(capturedRequest.getAccountType()).isEqualTo(AccountType.CHECKING);
-
-        assertThat(capturedRequest.getCurrency()).isEqualTo("USD");
-
         assertThat(capturedRequest.getOpeningBalance()).isEqualByComparingTo("2500.00");
     }
 
     @Test
     void createAccountWithoutJwtReturnsUnauthorized() throws Exception {
-
         mockMvc.perform(
                         post("/api/v1/accounts")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
-                                        {
-                                          "name": "Main Checking",
-                                          "accountType": "CHECKING",
-                                          "currency": "USD",
-                                          "openingBalance": 2500.00
-                                        }
-                                        """)
-                ).andExpect(status().isUnauthorized());
+                                    {
+                                      "name": "Main Checking",
+                                      "accountType": "CHECKING",
+                                      "openingBalance": 2500.00
+                                    }
+                                    """)
+                )
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(accountService);
     }
 
     @Test
     void createAccountWithInvalidRequestReturnsBadRequest() throws Exception {
-
         mockMvc.perform(
                         post("/api/v1/accounts")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
-                                        {
-                                          "name": " ",
-                                          "currency": "US"
-                                        }
-                                        """)
-                ).andExpect(status().isBadRequest());
+                                    {
+                                      "name": " ",
+                                      "openingBalance": 100.00
+                                    }
+                                    """)
+                )
+                .andExpect(status().isBadRequest());
 
         verifyNoInteractions(accountService);
     }

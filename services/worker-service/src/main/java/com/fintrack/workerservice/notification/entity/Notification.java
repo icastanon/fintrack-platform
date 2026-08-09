@@ -45,6 +45,9 @@ public class Notification {
     @Column(name = "spent_amount", nullable = false, updatable = false, precision = 19, scale = 2)
     private BigDecimal spentAmount;
 
+    @Column(name = "currency", nullable = false, updatable = false, length = 3)
+    private String currency;
+
     @Column(name = "message", nullable = false, updatable = false, length = 500)
     private String message;
 
