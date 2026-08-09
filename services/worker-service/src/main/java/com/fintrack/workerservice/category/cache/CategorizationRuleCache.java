@@ -29,6 +29,7 @@ public class CategorizationRuleCache {
     private final JsonMapper jsonMapper;
     private final CategorizationRuleRepository categorizationRuleRepository;
     private final CategoryRepository categoryRepository;
+    private final CategorizationRuleCacheMetrics metrics;
     private final Duration cacheTtl;
 
     public CategorizationRuleCache(
@@ -36,12 +37,14 @@ public class CategorizationRuleCache {
             JsonMapper jsonMapper,
             CategorizationRuleRepository categorizationRuleRepository,
             CategoryRepository categoryRepository,
+            CategorizationRuleCacheMetrics metrics,
             @Value("${fintrack.redis.categorization-rules-ttl}") Duration cacheTtl
     ) {
         this.redisTemplate = redisTemplate;
         this.jsonMapper = jsonMapper;
         this.categorizationRuleRepository = categorizationRuleRepository;
         this.categoryRepository = categoryRepository;
+        this.metrics = metrics;
         this.cacheTtl = cacheTtl;
     }
 
@@ -49,14 +52,15 @@ public class CategorizationRuleCache {
         CategorizationRuleCacheSnapshot cachedSnapshot = readFromRedis();
 
         if (cachedSnapshot != null) {
+            metrics.recordHit();
             LOGGER.debug("Categorization-rule cache hit");
             return cachedSnapshot;
         }
 
+        metrics.recordMiss();
         LOGGER.debug("Categorization-rule cache miss");
 
         CategorizationRuleCacheSnapshot databaseSnapshot = loadFromDatabase();
-
         writeToRedis(databaseSnapshot);
 
         return databaseSnapshot;
@@ -73,11 +77,13 @@ public class CategorizationRuleCache {
             try {
                 return jsonMapper.readValue(cachedJson, CategorizationRuleCacheSnapshot.class);
             } catch (JacksonException exception) {
-                LOGGER.warn("Cached categorization rules could not be deserialized; rebuilding the cache");
-                evictQuietly();
-                return null;
-            }
+            metrics.recordDeserializationError();
+            LOGGER.warn("Cached categorization rules could not be deserialized; rebuilding the cache");
+            evict();
+            return null;
+        }
         } catch (DataAccessException exception) {
+            metrics.recordRedisReadError();
             LOGGER.warn("Redis read failed; using PostgreSQL categorization rules: {}", exception.getMessage());
             return null;
         }
@@ -107,17 +113,29 @@ public class CategorizationRuleCache {
             String serializedSnapshot = jsonMapper.writeValueAsString(snapshot);
             redisTemplate.opsForValue().set(CACHE_KEY, serializedSnapshot, cacheTtl);
         } catch (JacksonException exception) {
+            metrics.recordSerializationError();
             LOGGER.warn("Categorization-rule snapshot could not be serialized; continuing without caching");
         } catch (DataAccessException exception) {
+            metrics.recordRedisWriteError();
             LOGGER.warn("Redis write failed; continuing with PostgreSQL categorization rules: {}", exception.getMessage());
         }
     }
 
-    private void evictQuietly() {
+    public boolean evict() {
         try {
-            redisTemplate.delete(CACHE_KEY);
+            boolean deleted = Boolean.TRUE.equals(redisTemplate.delete(CACHE_KEY));
+
+            if (deleted) {
+                LOGGER.info("Categorization-rule cache evicted");
+            } else {
+                LOGGER.debug("Categorization-rule cache was already empty");
+            }
+
+            return deleted;
         } catch (DataAccessException exception) {
-            LOGGER.warn("Corrupt categorization-rule cache entry could not be deleted: {}", exception.getMessage());
+            metrics.recordEvictionError();
+            LOGGER.warn("Categorization-rule cache could not be evicted: {}", exception.getMessage());
+            return false;
         }
     }
 }
