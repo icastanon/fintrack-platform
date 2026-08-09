@@ -2,9 +2,12 @@ package com.fintrack.workerservice.transaction.service;
 
 import com.fintrack.eventcontracts.TransactionProcessingReason;
 import com.fintrack.eventcontracts.TransactionProcessingRequestEvent;
+import com.fintrack.workerservice.budget.model.BudgetEvaluationResult;
+import com.fintrack.workerservice.budget.model.BudgetStatus;
 import com.fintrack.workerservice.budget.service.BudgetEvaluationService;
 import com.fintrack.workerservice.category.service.CategorizationService;
 import com.fintrack.workerservice.idempotency.service.ProcessedMessageService;
+import com.fintrack.workerservice.notification.service.NotificationService;
 import com.fintrack.workerservice.transaction.entity.FinancialTransaction;
 import com.fintrack.workerservice.transaction.entity.TransactionType;
 import com.fintrack.workerservice.transaction.exception.FinancialTransactionNotFoundException;
@@ -15,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -44,14 +48,18 @@ class TransactionProcessingRequestEventProcessorTest {
     private BudgetEvaluationService budgetEvaluationService;
 
     @Mock
+    private NotificationService notificationService;
+
+    @Mock
     private FinancialTransaction financialTransaction;
 
     @InjectMocks
     private TransactionProcessingRequestEventProcessor transactionProcessingRequestEventProcessor;
 
     @Test
-    void processWhenCreatedRequestIsNewCategorizesProcessesAndEvaluatesExpenseBudget() {
+    void processWhenCreatedRequestIsNewCategorizesProcessesEvaluatesBudgetAndCreatesNotification() {
         TransactionProcessingRequestEvent event = createEvent(TransactionProcessingReason.CREATED);
+        BudgetEvaluationResult evaluation = createWarningEvaluation();
 
         when(processedMessageService.recordIfFirst(
                 event.getEventId(),
@@ -72,7 +80,14 @@ class TransactionProcessingRequestEventProcessorTest {
         when(financialTransaction.getTransactionType()).thenReturn(TransactionType.EXPENSE);
         when(financialTransaction.getTransactionDate()).thenReturn(LocalDate.of(2026, 8, 8));
         when(budgetEvaluationService.evaluate(25L, 4L, LocalDate.of(2026, 8, 8)))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.of(evaluation));
+        when(notificationService.createIfRequired(
+                25L,
+                4L,
+                100L,
+                LocalDate.of(2026, 8, 8),
+                evaluation
+        )).thenReturn(true);
 
         boolean firstProcessing = transactionProcessingRequestEventProcessor.process(event);
 
@@ -82,10 +97,17 @@ class TransactionProcessingRequestEventProcessorTest {
         verify(financialTransaction).assignAutomaticCategory(4L);
         verify(financialTransaction).markProcessed();
         verify(budgetEvaluationService).evaluate(25L, 4L, LocalDate.of(2026, 8, 8));
+        verify(notificationService).createIfRequired(
+                25L,
+                4L,
+                100L,
+                LocalDate.of(2026, 8, 8),
+                evaluation
+        );
     }
 
     @Test
-    void processWhenCategoryWasOverriddenPreservesCategoryAndEvaluatesExpenseBudget() {
+    void processWhenCategoryWasOverriddenPreservesCategoryAndSkipsNotificationWithoutBudget() {
         TransactionProcessingRequestEvent event = createEvent(TransactionProcessingReason.CATEGORY_OVERRIDDEN);
 
         when(processedMessageService.recordIfFirst(
@@ -115,10 +137,11 @@ class TransactionProcessingRequestEventProcessorTest {
         verify(financialTransaction, never()).assignAutomaticCategory(anyLong());
         verify(financialTransaction).markProcessed();
         verify(budgetEvaluationService).evaluate(25L, 7L, LocalDate.of(2026, 8, 8));
+        verifyNoInteractions(notificationService);
     }
 
     @Test
-    void processWhenTransactionIsIncomeSkipsBudgetEvaluation() {
+    void processWhenTransactionIsIncomeSkipsBudgetEvaluationAndNotification() {
         TransactionProcessingRequestEvent event = createEvent(TransactionProcessingReason.CREATED);
 
         when(processedMessageService.recordIfFirst(
@@ -144,7 +167,7 @@ class TransactionProcessingRequestEventProcessorTest {
 
         verify(financialTransaction).assignAutomaticCategory(8L);
         verify(financialTransaction).markProcessed();
-        verifyNoInteractions(budgetEvaluationService);
+        verifyNoInteractions(budgetEvaluationService, notificationService);
     }
 
     @Test
@@ -166,6 +189,7 @@ class TransactionProcessingRequestEventProcessorTest {
                 financialTransactionRepository,
                 categorizationService,
                 budgetEvaluationService,
+                notificationService,
                 financialTransaction
         );
     }
@@ -193,7 +217,18 @@ class TransactionProcessingRequestEventProcessorTest {
         verifyNoInteractions(
                 categorizationService,
                 budgetEvaluationService,
+                notificationService,
                 financialTransaction
+        );
+    }
+
+    private BudgetEvaluationResult createWarningEvaluation() {
+        return new BudgetEvaluationResult(
+                10L,
+                new BigDecimal("100.00"),
+                new BigDecimal("80.00"),
+                new BigDecimal("80.00"),
+                BudgetStatus.WARNING
         );
     }
 

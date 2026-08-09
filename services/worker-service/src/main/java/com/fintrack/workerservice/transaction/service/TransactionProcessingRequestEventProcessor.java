@@ -5,6 +5,7 @@ import com.fintrack.workerservice.budget.model.BudgetEvaluationResult;
 import com.fintrack.workerservice.budget.service.BudgetEvaluationService;
 import com.fintrack.workerservice.category.service.CategorizationService;
 import com.fintrack.workerservice.idempotency.service.ProcessedMessageService;
+import com.fintrack.workerservice.notification.service.NotificationService;
 import com.fintrack.workerservice.transaction.entity.FinancialTransaction;
 import com.fintrack.workerservice.transaction.entity.TransactionType;
 import com.fintrack.workerservice.transaction.exception.FinancialTransactionNotFoundException;
@@ -14,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 @Service
@@ -27,15 +29,18 @@ public class TransactionProcessingRequestEventProcessor {
     private final FinancialTransactionRepository financialTransactionRepository;
     private final CategorizationService categorizationService;
     private final BudgetEvaluationService budgetEvaluationService;
+    private final NotificationService notificationService;
 
     public TransactionProcessingRequestEventProcessor(ProcessedMessageService processedMessageService,
                                                       FinancialTransactionRepository financialTransactionRepository,
                                                       CategorizationService categorizationService,
-                                                      BudgetEvaluationService budgetEvaluationService) {
+                                                      BudgetEvaluationService budgetEvaluationService,
+                                                      NotificationService notificationService) {
         this.processedMessageService = processedMessageService;
         this.financialTransactionRepository = financialTransactionRepository;
         this.categorizationService = categorizationService;
         this.budgetEvaluationService = budgetEvaluationService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -59,12 +64,10 @@ public class TransactionProcessingRequestEventProcessor {
 
         FinancialTransaction transaction = financialTransactionRepository
                 .findByIdAndUserId(event.getTransactionId(), event.getUserId())
-                .orElseThrow(() ->
-                        new FinancialTransactionNotFoundException(
-                                event.getTransactionId(),
-                                event.getUserId()
-                        )
-                );
+                .orElseThrow(() -> new FinancialTransactionNotFoundException(
+                        event.getTransactionId(),
+                        event.getUserId()
+                ));
 
         if (!transaction.isManualCategoryOverride()) {
             Long categoryId = categorizationService.categorizeMerchant(transaction.getMerchant());
@@ -74,13 +77,18 @@ public class TransactionProcessingRequestEventProcessor {
         transaction.markProcessed();
 
         if (transaction.getTransactionType() == TransactionType.EXPENSE) {
+            Long categoryId = transaction.getCategoryId();
+            LocalDate transactionDate = transaction.getTransactionDate();
+
             Optional<BudgetEvaluationResult> evaluation = budgetEvaluationService.evaluate(
                     event.getUserId(),
-                    transaction.getCategoryId(),
-                    transaction.getTransactionDate()
+                    categoryId,
+                    transactionDate
             );
 
-            evaluation.ifPresent(result -> logBudgetEvaluation(event, result));
+            evaluation.ifPresent(result ->
+                    handleBudgetEvaluation(event, categoryId, transactionDate, result)
+            );
         }
 
         LOGGER.info(
@@ -94,6 +102,31 @@ public class TransactionProcessingRequestEventProcessor {
         );
 
         return true;
+    }
+
+    private void handleBudgetEvaluation(TransactionProcessingRequestEvent event, Long categoryId,
+                                        LocalDate transactionDate, BudgetEvaluationResult result) {
+        logBudgetEvaluation(event, result);
+
+        boolean notificationCreated = notificationService.createIfRequired(
+                event.getUserId(),
+                categoryId,
+                event.getTransactionId(),
+                transactionDate,
+                result
+        );
+
+        if (notificationCreated) {
+            LOGGER.info(
+                    "Created budget notification: eventId={}, reason={}, budgetId={}, categoryId={}, budgetMonth={}, status={}",
+                    event.getEventId(),
+                    event.getReason(),
+                    result.getBudgetId(),
+                    categoryId,
+                    transactionDate.withDayOfMonth(1),
+                    result.getStatus()
+            );
+        }
     }
 
     private void logBudgetEvaluation(TransactionProcessingRequestEvent event, BudgetEvaluationResult result) {
