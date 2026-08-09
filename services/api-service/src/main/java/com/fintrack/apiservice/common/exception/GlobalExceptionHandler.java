@@ -7,6 +7,7 @@ import com.fintrack.apiservice.budget.exception.BudgetNotFoundException;
 import com.fintrack.apiservice.budget.exception.BudgetVersionConflictException;
 import com.fintrack.apiservice.category.exception.CategoryNotFoundException;
 import com.fintrack.apiservice.common.dto.ErrorResponse;
+import com.fintrack.apiservice.notification.exception.NotificationNotFoundException;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
@@ -239,6 +240,17 @@ public class GlobalExceptionHandler {
         ErrorResponse response = new ErrorResponse(HttpStatus.CONFLICT.value(), exception.getMessage(), Map.of());
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotificationNotFound(NotificationNotFoundException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
 
