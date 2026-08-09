@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-public final class TransactionCreatedEvent {
+public final class TransactionProcessingRequestEvent {
 
     public static final int CURRENT_VERSION = 1;
 
@@ -15,14 +15,16 @@ public final class TransactionCreatedEvent {
     private final int eventVersion;
     private final Long transactionId;
     private final Long userId;
+    private final TransactionProcessingReason reason;
     private final Instant occurredAt;
 
     @JsonCreator
-    public TransactionCreatedEvent(
+    public TransactionProcessingRequestEvent(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("eventVersion") int eventVersion,
             @JsonProperty("transactionId") Long transactionId,
             @JsonProperty("userId") Long userId,
+            @JsonProperty("reason") TransactionProcessingReason reason,
             @JsonProperty("occurredAt") Instant occurredAt
     ) {
         if (eventVersion < 1) {
@@ -33,11 +35,12 @@ public final class TransactionCreatedEvent {
         this.eventVersion = eventVersion;
         this.transactionId = Objects.requireNonNull(transactionId, "Transaction ID is required");
         this.userId = Objects.requireNonNull(userId, "User ID is required");
+        this.reason = Objects.requireNonNull(reason, "Processing reason is required");
         this.occurredAt = Objects.requireNonNull(occurredAt, "Occurred at is required");
     }
 
-    public static TransactionCreatedEvent create(UUID eventId, Long transactionId, Long userId, Instant occurredAt) {
-        return new TransactionCreatedEvent(eventId, CURRENT_VERSION, transactionId, userId, occurredAt);
+    public static TransactionProcessingRequestEvent create(UUID eventId, Long transactionId, Long userId, TransactionProcessingReason reason, Instant occurredAt) {
+        return new TransactionProcessingRequestEvent(eventId, CURRENT_VERSION, transactionId, userId, reason, occurredAt);
     }
 
     public UUID getEventId() {
@@ -54,6 +57,10 @@ public final class TransactionCreatedEvent {
 
     public Long getUserId() {
         return userId;
+    }
+
+    public TransactionProcessingReason getReason() {
+        return reason;
     }
 
     public Instant getOccurredAt() {

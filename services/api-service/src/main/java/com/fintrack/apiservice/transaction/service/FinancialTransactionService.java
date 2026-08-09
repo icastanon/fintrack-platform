@@ -11,11 +11,13 @@ import com.fintrack.apiservice.category.repository.CategoryRepository;
 import com.fintrack.apiservice.outbox.service.OutboxEventWriter;
 import com.fintrack.apiservice.transaction.dto.*;
 import com.fintrack.apiservice.transaction.entity.FinancialTransaction;
+import com.fintrack.apiservice.transaction.entity.ProcessingStatus;
 import com.fintrack.apiservice.transaction.entity.TransactionType;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.transaction.mapper.FinancialTransactionMapper;
 import com.fintrack.apiservice.transaction.repository.FinancialTransactionRepository;
+import com.fintrack.eventcontracts.TransactionProcessingReason;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -71,7 +73,11 @@ public class FinancialTransactionService {
 
         FinancialTransaction savedTransaction = transactionRepository.save(transaction);
 
-        outboxEventWriter.writeTransactionCreated(transaction.getId(), userId);
+        outboxEventWriter.writeTransactionProcessingRequested(
+                transaction.getId(),
+                userId,
+                TransactionProcessingReason.CREATED
+        );
 
         return transactionMapper.toResponse(savedTransaction);
     }
@@ -136,11 +142,21 @@ public class FinancialTransactionService {
             throw new FinancialTransactionVersionConflictException();
         }
 
-        Category category = categoryRepository.findById(request.getCategoryId()).orElseThrow(CategoryNotFoundException::new);
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(CategoryNotFoundException::new);
+
+        ProcessingStatus processingStatus = transaction.getProcessingStatus();
 
         transaction.overrideCategory(category);
-
         transactionRepository.flush();
+
+        if (processingStatus == ProcessingStatus.PROCESSED) {
+            outboxEventWriter.writeTransactionProcessingRequested(
+                    transactionId,
+                    userId,
+                    TransactionProcessingReason.CATEGORY_OVERRIDDEN
+            );
+        }
 
         return transactionMapper.toResponse(transaction);
     }

@@ -10,7 +10,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class SqsOutboxEventPublisher implements OutboxEventPublisher {
 
-    private static final String TRANSACTION_CREATED_EVENT_TYPE = "TRANSACTION_CREATED";
+    private static final String TRANSACTION_PROCESSING_REQUESTED_EVENT_TYPE = "TRANSACTION_PROCESSING_REQUESTED";
 
     private final SqsOperations sqsOperations;
     private final JsonMapper jsonMapper;
@@ -41,7 +41,7 @@ public class SqsOutboxEventPublisher implements OutboxEventPublisher {
     }
 
     private String resolveDestinationQueue(String eventType) {
-        if (TRANSACTION_CREATED_EVENT_TYPE.equals(eventType)) {
+        if (TRANSACTION_PROCESSING_REQUESTED_EVENT_TYPE.equals(eventType)) {
             return transactionProcessingQueue;
         }
 

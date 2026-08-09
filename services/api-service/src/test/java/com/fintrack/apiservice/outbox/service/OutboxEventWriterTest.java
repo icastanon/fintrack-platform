@@ -3,7 +3,8 @@ package com.fintrack.apiservice.outbox.service;
 import com.fintrack.apiservice.outbox.entity.OutboxEvent;
 import com.fintrack.apiservice.outbox.entity.OutboxEventStatus;
 import com.fintrack.apiservice.outbox.repository.OutboxEventRepository;
-import com.fintrack.eventcontracts.TransactionCreatedEvent;
+import com.fintrack.eventcontracts.TransactionProcessingRequestEvent;
+import com.fintrack.eventcontracts.TransactionProcessingReason;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,7 +37,7 @@ class OutboxEventWriterTest {
     private OutboxEventWriter outboxEventWriter;
 
     @Test
-    void writeTransactionCreated_createsPendingOutboxEvent() {
+    void writeTransactionProcessingRequestedCreatesPendingOutboxEvent() {
         Long transactionId = 41L;
         Long userId = 7L;
 
@@ -45,25 +46,46 @@ class OutboxEventWriterTest {
         payload.put("eventVersion", 1);
         payload.put("transactionId", transactionId);
         payload.put("userId", userId);
+        payload.put("reason", "CREATED");
         payload.put("occurredAt", "2026-08-05T15:00:00Z");
 
         when(jsonMapper.convertValue(
-                any(TransactionCreatedEvent.class),
+                any(TransactionProcessingRequestEvent.class),
                 org.mockito.ArgumentMatchers.<TypeReference<Map<String, Object>>>any()
         )).thenReturn(payload);
 
-        outboxEventWriter.writeTransactionCreated(transactionId, userId);
+        outboxEventWriter.writeTransactionProcessingRequested(
+                transactionId,
+                userId,
+                TransactionProcessingReason.CREATED
+        );
+
+        ArgumentCaptor<TransactionProcessingRequestEvent> eventCaptor =
+                ArgumentCaptor.forClass(TransactionProcessingRequestEvent.class);
+
+        verify(jsonMapper).convertValue(
+                eventCaptor.capture(),
+                org.mockito.ArgumentMatchers.<TypeReference<Map<String, Object>>>any()
+        );
+
+        TransactionProcessingRequestEvent capturedEvent = eventCaptor.getValue();
+
+        assertThat(capturedEvent.getEventId()).isNotNull();
+        assertThat(capturedEvent.getTransactionId()).isEqualTo(transactionId);
+        assertThat(capturedEvent.getUserId()).isEqualTo(userId);
+        assertThat(capturedEvent.getReason()).isEqualTo(TransactionProcessingReason.CREATED);
+        assertThat(capturedEvent.getOccurredAt()).isNotNull();
 
         ArgumentCaptor<OutboxEvent> outboxEventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository).save(outboxEventCaptor.capture());
 
         OutboxEvent savedOutboxEvent = outboxEventCaptor.getValue();
 
-        assertThat(savedOutboxEvent.getEventId()).isNotNull();
+        assertThat(savedOutboxEvent.getEventId()).isEqualTo(capturedEvent.getEventId());
         assertThat(savedOutboxEvent.getAggregateType()).isEqualTo("FINANCIAL_TRANSACTION");
         assertThat(savedOutboxEvent.getAggregateId()).isEqualTo(transactionId);
-        assertThat(savedOutboxEvent.getEventType()).isEqualTo("TRANSACTION_CREATED");
-        assertThat(savedOutboxEvent.getEventVersion()).isEqualTo(TransactionCreatedEvent.CURRENT_VERSION);
+        assertThat(savedOutboxEvent.getEventType()).isEqualTo("TRANSACTION_PROCESSING_REQUESTED");
+        assertThat(savedOutboxEvent.getEventVersion()).isEqualTo(TransactionProcessingRequestEvent.CURRENT_VERSION);
         assertThat(savedOutboxEvent.getPayload()).isEqualTo(payload);
         assertThat(savedOutboxEvent.getStatus()).isEqualTo(OutboxEventStatus.PENDING);
         assertThat(savedOutboxEvent.getAttemptCount()).isZero();
@@ -75,13 +97,19 @@ class OutboxEventWriterTest {
     }
 
     @Test
-    void writeTransactionCreated_whenSerializationFails_doesNotSaveOutboxEvent() {
+    void writeTransactionProcessingRequestedWhenSerializationFailsDoesNotSaveOutboxEvent() {
         when(jsonMapper.convertValue(
-                any(TransactionCreatedEvent.class),
+                any(TransactionProcessingRequestEvent.class),
                 org.mockito.ArgumentMatchers.<TypeReference<Map<String, Object>>>any()
         )).thenThrow(new IllegalArgumentException("Serialization failed"));
 
-        assertThatThrownBy(() -> outboxEventWriter.writeTransactionCreated(41L, 7L))
+        assertThatThrownBy(() ->
+                outboxEventWriter.writeTransactionProcessingRequested(
+                        41L,
+                        7L,
+                        TransactionProcessingReason.CREATED
+                )
+        )
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Serialization failed");
 

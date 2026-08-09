@@ -45,9 +45,7 @@ public class BudgetService {
 
     @Transactional
     public BudgetResponse createBudget(Long userId, BudgetCreateRequest request) {
-        FintrackUser user = userRepository.findById(userId).orElseThrow(() ->
-                new FintrackUserNotFoundException(userId)
-        );
+        FintrackUser user = userRepository.findById(userId).orElseThrow(() -> new FintrackUserNotFoundException(userId));
 
         Category category = categoryRepository.findById(request.getCategoryId()).orElseThrow(CategoryNotFoundException::new);
 

@@ -19,6 +19,7 @@ import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoun
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.transaction.mapper.FinancialTransactionMapper;
 import com.fintrack.apiservice.transaction.repository.FinancialTransactionRepository;
+import com.fintrack.eventcontracts.TransactionProcessingReason;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -101,7 +102,12 @@ class FinancialTransactionServiceTest {
         assertThat(savedTransaction.isManualCategoryOverride()).isFalse();
         assertThat(account.getCurrentBalance()).isEqualByComparingTo("916.58");
 
-        verify(outboxEventWriter).writeTransactionCreated(41L, 7L);
+        verify(outboxEventWriter).writeTransactionProcessingRequested(
+                41L,
+                7L,
+                TransactionProcessingReason.CREATED
+        );
+
         verify(transactionMapper).toResponse(savedTransaction);
     }
 
@@ -120,7 +126,8 @@ class FinancialTransactionServiceTest {
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
         mockTransactionSaveWithId(41L);
-        when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
+        when(transactionMapper.toResponse(any(FinancialTransaction.class)))
+                .thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
 
         transactionService.createTransaction(7L, request);
 
@@ -132,7 +139,11 @@ class FinancialTransactionServiceTest {
         assertThat(savedTransaction.getTransactionType()).isEqualTo(TransactionType.INCOME);
         assertThat(account.getCurrentBalance()).isEqualByComparingTo("1250.00");
 
-        verify(outboxEventWriter).writeTransactionCreated(41L, 7L);
+        verify(outboxEventWriter).writeTransactionProcessingRequested(
+                41L,
+                7L,
+                TransactionProcessingReason.CREATED
+        );
     }
 
     @Test
@@ -145,7 +156,8 @@ class FinancialTransactionServiceTest {
 
         when(accountRepository.findByIdAndUserId(15L, 7L)).thenReturn(Optional.of(account));
         mockTransactionSaveWithId(41L);
-        when(transactionMapper.toResponse(any(FinancialTransaction.class))).thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
+        when(transactionMapper.toResponse(any(FinancialTransaction.class)))
+                .thenReturn(org.mockito.Mockito.mock(FinancialTransactionResponse.class));
 
         transactionService.createTransaction(7L, request);
 
@@ -157,7 +169,11 @@ class FinancialTransactionServiceTest {
         assertThat(savedTransaction.getMerchant()).isNull();
         assertThat(savedTransaction.getDescription()).isNull();
 
-        verify(outboxEventWriter).writeTransactionCreated(41L, 7L);
+        verify(outboxEventWriter).writeTransactionProcessingRequested(
+                41L,
+                7L,
+                TransactionProcessingReason.CREATED
+        );
     }
 
     @Test
@@ -323,13 +339,15 @@ class FinancialTransactionServiceTest {
         assertThat(capturedPageable.getPageNumber()).isEqualTo(1);
         assertThat(capturedPageable.getPageSize()).isEqualTo(2);
         assertThat(capturedPageable.getSort().getOrderFor("transactionDate")).isNotNull();
-        assertThat(capturedPageable.getSort().getOrderFor("transactionDate").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(capturedPageable.getSort().getOrderFor("transactionDate").getDirection())
+                .isEqualTo(Sort.Direction.DESC);
         assertThat(capturedPageable.getSort().getOrderFor("id")).isNotNull();
-        assertThat(capturedPageable.getSort().getOrderFor("id").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(capturedPageable.getSort().getOrderFor("id").getDirection())
+                .isEqualTo(Sort.Direction.DESC);
     }
 
     @Test
-    void overrideCategoryAssignsManualCategoryAndFlushesBeforeMapping() {
+    void overrideCategoryWhenPendingAssignsManualCategoryWithoutWritingProcessingRequest() {
         FinancialAccount account = createActiveAccount(new BigDecimal("1000.00"));
 
         FinancialTransaction transaction = FinancialTransaction.createManual(
@@ -364,6 +382,50 @@ class FinancialTransactionServiceTest {
         verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
         verify(categoryRepository).findById(2L);
         verify(transactionRepository).flush();
+        verifyNoInteractions(outboxEventWriter);
+        verify(transactionMapper).toResponse(transaction);
+    }
+
+    @Test
+    void overrideCategoryWhenProcessedWritesCategoryOverriddenProcessingRequest() {
+        FinancialAccount account = createActiveAccount(new BigDecimal("1000.00"));
+
+        FinancialTransaction transaction = FinancialTransaction.createManual(
+                account,
+                TransactionType.EXPENSE,
+                new BigDecimal("83.42"),
+                "Publix",
+                "Weekly groceries",
+                LocalDate.of(2026, 8, 3)
+        );
+
+        transaction.markProcessed();
+        ReflectionTestUtils.setField(transaction, "version", 0L);
+
+        Category category = org.mockito.Mockito.mock(Category.class);
+
+        FinancialTransactionCategoryOverrideRequest request = new FinancialTransactionCategoryOverrideRequest();
+        request.setCategoryId(2L);
+        request.setVersion(0L);
+
+        FinancialTransactionResponse expectedResponse = org.mockito.Mockito.mock(FinancialTransactionResponse.class);
+
+        when(transactionRepository.findByIdAndAccountUserId(41L, 7L)).thenReturn(Optional.of(transaction));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(category));
+        when(transactionMapper.toResponse(transaction)).thenReturn(expectedResponse);
+
+        FinancialTransactionResponse result = transactionService.overrideCategory(7L, 41L, request);
+
+        assertThat(result).isSameAs(expectedResponse);
+        assertThat(transaction.getCategory()).isSameAs(category);
+        assertThat(transaction.isManualCategoryOverride()).isTrue();
+
+        verify(transactionRepository).flush();
+        verify(outboxEventWriter).writeTransactionProcessingRequested(
+                41L,
+                7L,
+                TransactionProcessingReason.CATEGORY_OVERRIDDEN
+        );
         verify(transactionMapper).toResponse(transaction);
     }
 
@@ -381,6 +443,7 @@ class FinancialTransactionServiceTest {
         verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
         verifyNoInteractions(categoryRepository);
         verify(transactionRepository, never()).flush();
+        verifyNoInteractions(outboxEventWriter);
         verifyNoInteractions(transactionMapper);
     }
 
@@ -415,6 +478,7 @@ class FinancialTransactionServiceTest {
         verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
         verifyNoInteractions(categoryRepository);
         verify(transactionRepository, never()).flush();
+        verifyNoInteractions(outboxEventWriter);
         verifyNoInteractions(transactionMapper);
     }
 
@@ -450,6 +514,7 @@ class FinancialTransactionServiceTest {
         verify(transactionRepository).findByIdAndAccountUserId(41L, 7L);
         verify(categoryRepository).findById(999L);
         verify(transactionRepository, never()).flush();
+        verifyNoInteractions(outboxEventWriter);
         verifyNoInteractions(transactionMapper);
     }
 }
