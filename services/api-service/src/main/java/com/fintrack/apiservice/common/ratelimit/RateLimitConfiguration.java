@@ -31,4 +31,23 @@ public class RateLimitConfiguration {
 
         return registration;
     }
+
+    @Bean
+    public FilterRegistrationBean<AuthenticatedUserRateLimitFilter> authenticatedUserRateLimitFilter(RedisFixedWindowRateLimiter rateLimiter,
+                                                                                                     JsonMapper jsonMapper,
+                                                                                                     RateLimitProperties properties) {
+        AuthenticatedUserRateLimitFilter filter = new AuthenticatedUserRateLimitFilter(
+                rateLimiter,
+                jsonMapper,
+                properties.getAuthenticatedUserLimit(),
+                properties.getAuthenticatedUserWindow()
+        );
+
+        FilterRegistrationBean<AuthenticatedUserRateLimitFilter> registration = new FilterRegistrationBean<>(filter);
+
+        registration.setName("authenticatedUserRateLimitFilter");
+        registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
+
+        return registration;
+    }
 }
