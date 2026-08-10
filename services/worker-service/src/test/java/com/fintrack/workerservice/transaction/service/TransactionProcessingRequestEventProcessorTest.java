@@ -238,6 +238,7 @@ class TransactionProcessingRequestEventProcessorTest {
                 100L,
                 25L,
                 reason,
+                "processor-test-correlation-id",
                 Instant.parse("2026-08-06T12:00:00Z")
         );
     }

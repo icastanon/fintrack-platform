@@ -5,12 +5,15 @@ import com.fintrack.apiservice.outbox.entity.OutboxEventStatus;
 import com.fintrack.apiservice.outbox.repository.OutboxEventRepository;
 import com.fintrack.eventcontracts.TransactionProcessingRequestEvent;
 import com.fintrack.eventcontracts.TransactionProcessingReason;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.MDC;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -27,6 +30,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OutboxEventWriterTest {
 
+    private static final String CORRELATION_ID = "request-123";
+
     @Mock
     private OutboxEventRepository outboxEventRepository;
 
@@ -35,6 +40,16 @@ class OutboxEventWriterTest {
 
     @InjectMocks
     private OutboxEventWriter outboxEventWriter;
+
+    @BeforeEach
+    void setUpCorrelationId() {
+        MDC.put("correlationId", CORRELATION_ID);
+    }
+
+    @AfterEach
+    void clearCorrelationId() {
+        MDC.clear();
+    }
 
     @Test
     void writeTransactionProcessingRequestedCreatesPendingOutboxEvent() {
@@ -47,6 +62,7 @@ class OutboxEventWriterTest {
         payload.put("transactionId", transactionId);
         payload.put("userId", userId);
         payload.put("reason", "CREATED");
+        payload.put("correlationId", CORRELATION_ID);
         payload.put("occurredAt", "2026-08-05T15:00:00Z");
 
         when(jsonMapper.convertValue(
@@ -74,6 +90,7 @@ class OutboxEventWriterTest {
         assertThat(capturedEvent.getTransactionId()).isEqualTo(transactionId);
         assertThat(capturedEvent.getUserId()).isEqualTo(userId);
         assertThat(capturedEvent.getReason()).isEqualTo(TransactionProcessingReason.CREATED);
+        assertThat(capturedEvent.getCorrelationId()).isEqualTo(CORRELATION_ID);
         assertThat(capturedEvent.getOccurredAt()).isNotNull();
 
         ArgumentCaptor<OutboxEvent> outboxEventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);

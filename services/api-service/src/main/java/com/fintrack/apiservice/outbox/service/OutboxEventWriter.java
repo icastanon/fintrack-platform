@@ -1,6 +1,8 @@
 package com.fintrack.apiservice.outbox.service;
 
+import com.fintrack.apiservice.common.correlation.CorrelationIdFilter;
 import com.fintrack.eventcontracts.TransactionProcessingReason;
+import org.slf4j.MDC;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 import com.fintrack.apiservice.outbox.entity.OutboxEvent;
@@ -32,12 +34,14 @@ public class OutboxEventWriter {
     public void writeTransactionProcessingRequested(Long transactionId, Long userId, TransactionProcessingReason reason) {
         UUID eventId = UUID.randomUUID();
         Instant occurredAt = Instant.now();
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
 
         TransactionProcessingRequestEvent event = TransactionProcessingRequestEvent.create(
                 eventId,
                 transactionId,
                 userId,
                 reason,
+                correlationId,
                 occurredAt
         );
 
