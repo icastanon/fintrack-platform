@@ -12,17 +12,21 @@ public class SqsOutboxEventPublisher implements OutboxEventPublisher {
 
     private static final String TRANSACTION_PROCESSING_REQUESTED_EVENT_TYPE = "TRANSACTION_PROCESSING_REQUESTED";
 
+    private static final String TRANSACTION_IMPORT_REQUESTED_EVENT_TYPE = "TRANSACTION_IMPORT_REQUESTED";
+
     private final SqsOperations sqsOperations;
     private final JsonMapper jsonMapper;
     private final String transactionProcessingQueue;
+    private final String importJobsQueue;
 
     public SqsOutboxEventPublisher(SqsOperations sqsOperations,
                                    JsonMapper jsonMapper,
-                                   @Value("${fintrack.sqs.transaction-processing-queue}")
-                                   String transactionProcessingQueue) {
+                                   @Value("${fintrack.sqs.transaction-processing-queue}") String transactionProcessingQueue,
+                                   @Value("${fintrack.sqs.import-jobs-queue}") String importJobsQueue) {
         this.sqsOperations = sqsOperations;
         this.jsonMapper = jsonMapper;
         this.transactionProcessingQueue = transactionProcessingQueue;
+        this.importJobsQueue = importJobsQueue;
     }
 
     @Override
@@ -43,6 +47,10 @@ public class SqsOutboxEventPublisher implements OutboxEventPublisher {
     private String resolveDestinationQueue(String eventType) {
         if (TRANSACTION_PROCESSING_REQUESTED_EVENT_TYPE.equals(eventType)) {
             return transactionProcessingQueue;
+        }
+
+        if (TRANSACTION_IMPORT_REQUESTED_EVENT_TYPE.equals(eventType)) {
+            return importJobsQueue;
         }
 
         throw new IllegalArgumentException("Unsupported outbox event type: " + eventType);
