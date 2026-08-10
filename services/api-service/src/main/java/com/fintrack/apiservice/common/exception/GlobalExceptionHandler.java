@@ -10,9 +10,13 @@ import com.fintrack.apiservice.common.dto.ErrorResponse;
 import com.fintrack.apiservice.notification.exception.NotificationNotFoundException;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
+import com.fintrack.apiservice.transactionimport.exception.InvalidTransactionImportFileException;
+import com.fintrack.apiservice.transactionimport.exception.TransactionImportStorageException;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
 import com.fintrack.apiservice.user.exception.UsernameAlreadyExistsException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -30,6 +34,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -297,6 +303,30 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(InvalidTransactionImportFileException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTransactionImportFile(InvalidTransactionImportFileException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(TransactionImportStorageException.class)
+    public ResponseEntity<ErrorResponse> handleTransactionImportStorage(TransactionImportStorageException exception) {
+        LOGGER.error("Transaction import storage operation failed", exception);
+
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "Transaction import storage is temporarily unavailable",
+                Map.of()
+        );
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
     }
 
 
