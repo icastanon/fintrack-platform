@@ -148,7 +148,6 @@ class FinancialAccountServiceTest {
 
         assertThat(account.getName()).isEqualTo("Primary Checking");
         assertThat(account.getAccountType()).isEqualTo(AccountType.SAVINGS);
-
         assertThat(response.getName()).isEqualTo("Primary Checking");
         assertThat(response.getAccountType()).isEqualTo(AccountType.SAVINGS);
         assertThat(response.getCurrency()).isEqualTo("USD");
@@ -249,9 +248,14 @@ class FinancialAccountServiceTest {
         assertThat(pageable.getPageSize()).isEqualTo(20);
 
         Sort.Order createdAtOrder = pageable.getSort().getOrderFor("createdAt");
+        Sort.Order idOrder = pageable.getSort().getOrderFor("id");
 
         assertThat(createdAtOrder).isNotNull();
         assertThat(createdAtOrder.getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(idOrder).isNotNull();
+        assertThat(idOrder.getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(pageable.getSort().stream().map(Sort.Order::getProperty).toList())
+                .containsExactly("createdAt", "id");
     }
 
     @Test

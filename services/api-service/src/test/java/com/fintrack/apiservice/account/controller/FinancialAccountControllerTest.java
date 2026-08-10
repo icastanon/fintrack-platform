@@ -153,7 +153,6 @@ class FinancialAccountControllerTest {
 
     @Test
     void getAccountReturnsAccountAndUsesAuthenticatedUserId() throws Exception {
-
         FinancialAccountResponse serviceResponse = new FinancialAccountResponse();
 
         serviceResponse.setId(100L);
@@ -169,57 +168,34 @@ class FinancialAccountControllerTest {
 
         mockMvc.perform(
                         get("/api/v1/accounts/100")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(100))
-                .andExpect(
-                        jsonPath("$.name")
-                                .value("Main Checking")
-                )
-                .andExpect(
-                        jsonPath("$.accountType")
-                                .value("CHECKING")
-                )
-                .andExpect(
-                        jsonPath("$.currency")
-                                .value("USD")
-                )
-                .andExpect(
-                        jsonPath("$.status")
-                                .value("ACTIVE")
-                );
+                .andExpect(jsonPath("$.name").value("Main Checking"))
+                .andExpect(jsonPath("$.accountType").value("CHECKING"))
+                .andExpect(jsonPath("$.currency").value("USD"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
 
         verify(accountService).getAccount(7L, 100L);
     }
 
     @Test
     void getAccountUnavailableToAuthenticatedUserReturnsNotFound() throws Exception {
-
         when(accountService.getAccount(7L, 999L)).thenThrow(new FinancialAccountNotFoundException());
 
         mockMvc.perform(
                         get("/api/v1/accounts/999")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                 )
                 .andExpect(status().isNotFound())
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("Financial account not found")
-                );
+                .andExpect(jsonPath("$.message").value("Financial account not found"));
 
         verify(accountService).getAccount(7L, 999L);
     }
 
     @Test
     void updateAccountReturnsUpdatedAccountAndUsesAuthenticatedUserId() throws Exception {
-
         FinancialAccountResponse serviceResponse = new FinancialAccountResponse();
 
         serviceResponse.setId(100L);
@@ -239,10 +215,7 @@ class FinancialAccountControllerTest {
 
         mockMvc.perform(
                         put("/api/v1/accounts/100")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                     {
@@ -254,46 +227,33 @@ class FinancialAccountControllerTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(100))
-                .andExpect(
-                        jsonPath("$.name")
-                                .value("Primary Checking")
-                )
-                .andExpect(
-                        jsonPath("$.accountType")
-                                .value("SAVINGS")
-                )
+                .andExpect(jsonPath("$.name").value("Primary Checking"))
+                .andExpect(jsonPath("$.accountType").value("SAVINGS"))
                 .andExpect(jsonPath("$.version").value(4));
 
-        ArgumentCaptor<FinancialAccountUpdateRequest> requestCaptor = ArgumentCaptor.forClass(FinancialAccountUpdateRequest.class);
+        ArgumentCaptor<FinancialAccountUpdateRequest> requestCaptor =
+                ArgumentCaptor.forClass(FinancialAccountUpdateRequest.class);
 
         verify(accountService).updateAccount(eq(7L), eq(100L), requestCaptor.capture());
 
         FinancialAccountUpdateRequest capturedRequest = requestCaptor.getValue();
 
         assertThat(capturedRequest.getName()).isEqualTo("Primary Checking");
-
         assertThat(capturedRequest.getAccountType()).isEqualTo(AccountType.SAVINGS);
-
         assertThat(capturedRequest.getVersion()).isEqualTo(3L);
     }
 
     @Test
     void updateAccountWithStaleVersionReturnsConflict() throws Exception {
-
         when(accountService.updateAccount(
                 eq(7L),
                 eq(100L),
                 any(FinancialAccountUpdateRequest.class)
-        )).thenThrow(
-                new FinancialAccountVersionConflictException()
-        );
+        )).thenThrow(new FinancialAccountVersionConflictException());
 
         mockMvc.perform(
                         put("/api/v1/accounts/100")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                     {
@@ -304,13 +264,10 @@ class FinancialAccountControllerTest {
                                     """)
                 )
                 .andExpect(status().isConflict())
-                .andExpect(
-                        jsonPath("$.message")
-                                .value(
-                                        "The financial account was modified by another request. " +
-                                                "Reload the account and try again."
-                                )
-                );
+                .andExpect(jsonPath("$.message").value(
+                        "The financial account was modified by another request. " +
+                                "Reload the account and try again."
+                ));
 
         verify(accountService).updateAccount(
                 eq(7L),
@@ -321,7 +278,6 @@ class FinancialAccountControllerTest {
 
     @Test
     void closeAccountReturnsClosedAccountAndUsesAuthenticatedUserId() throws Exception {
-
         FinancialAccountResponse serviceResponse = new FinancialAccountResponse();
 
         serviceResponse.setId(100L);
@@ -337,17 +293,11 @@ class FinancialAccountControllerTest {
 
         mockMvc.perform(
                         patch("/api/v1/accounts/100/close")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(100))
-                .andExpect(
-                        jsonPath("$.status")
-                                .value("CLOSED")
-                )
+                .andExpect(jsonPath("$.status").value("CLOSED"))
                 .andExpect(jsonPath("$.version").value(4));
 
         verify(accountService).closeAccount(7L, 100L);
@@ -355,13 +305,9 @@ class FinancialAccountControllerTest {
 
     @Test
     void updateAccountWithInvalidRequestReturnsBadRequest() throws Exception {
-
         mockMvc.perform(
                         put("/api/v1/accounts/100")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                     {
@@ -378,7 +324,6 @@ class FinancialAccountControllerTest {
 
     @Test
     void getAccountsReturnsRequestedPageAndUsesAuthenticatedUserId() throws Exception {
-
         FinancialAccountResponse accountResponse = new FinancialAccountResponse();
 
         accountResponse.setId(100L);
@@ -390,7 +335,11 @@ class FinancialAccountControllerTest {
         accountResponse.setStatus(AccountStatus.ACTIVE);
         accountResponse.setVersion(0L);
 
-        PageRequest pageRequest = PageRequest.of(2, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
+        PageRequest pageRequest = PageRequest.of(
+                2,
+                5,
+                Sort.by(Sort.Direction.DESC, "createdAt", "id")
+        );
 
         PageResponse<FinancialAccountResponse> serviceResponse =
                 new PageResponse<>(
@@ -405,20 +354,14 @@ class FinancialAccountControllerTest {
 
         mockMvc.perform(
                         get("/api/v1/accounts")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .param("page", "2")
                                 .param("size", "5")
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(100))
-                .andExpect(
-                        jsonPath("$.content[0].name")
-                                .value("Main Checking")
-                )
+                .andExpect(jsonPath("$.content[0].name").value("Main Checking"))
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(5))
                 .andExpect(jsonPath("$.totalElements").value(11))
@@ -431,7 +374,6 @@ class FinancialAccountControllerTest {
 
     @Test
     void getAccountsUsesDefaultPaginationValues() throws Exception {
-
         PageResponse<FinancialAccountResponse> serviceResponse =
                 new PageResponse<>(
                         new PageImpl<>(
@@ -445,10 +387,7 @@ class FinancialAccountControllerTest {
 
         mockMvc.perform(
                         get("/api/v1/accounts")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
@@ -462,29 +401,38 @@ class FinancialAccountControllerTest {
 
     @Test
     void getAccountsWithNegativePageReturnsBadRequest() throws Exception {
-
         mockMvc.perform(
                         get("/api/v1/accounts")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .param("page", "-1")
                                 .param("size", "20")
-                ).andExpect(status().isBadRequest());
+                )
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(accountService);
+    }
+
+    @Test
+    void getAccountsWithNonNumericPageReturnsConsistentBadRequestResponse() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/accounts")
+                                .header("Authorization", "Bearer valid-token")
+                                .param("page", "not-a-number")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Invalid request parameter"))
+                .andExpect(jsonPath("$.errors.page").value("Value has an invalid format"))
+                .andExpect(jsonPath("$.timestamp").exists());
 
         verifyNoInteractions(accountService);
     }
 
     @Test
     void getAccountsWithExcessivePageSizeReturnsBadRequest() throws Exception {
-
         mockMvc.perform(
                         get("/api/v1/accounts")
-                                .header(
-                                        "Authorization",
-                                        "Bearer valid-token"
-                                )
+                                .header("Authorization", "Bearer valid-token")
                                 .param("page", "0")
                                 .param("size", "101")
                 )

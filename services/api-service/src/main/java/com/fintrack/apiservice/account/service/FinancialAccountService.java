@@ -74,7 +74,7 @@ public class FinancialAccountService {
     }
 
     public PageResponse<FinancialAccountResponse> getAccounts(Long userId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
 
         Page<FinancialAccountResponse> accountPage = accountRepository
                         .findAllByUserId(userId, pageable)

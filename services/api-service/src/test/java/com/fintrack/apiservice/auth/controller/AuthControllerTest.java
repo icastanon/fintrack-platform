@@ -67,7 +67,7 @@ class AuthControllerTest {
                                         {
                                           "username": "ivan",
                                           "email": "ivan@example.com",
-                                          "password": "plain-password",
+                                          "password": "validpass1",
                                           "currency": "USD"
                                         }
                                         """)
@@ -84,7 +84,7 @@ class AuthControllerTest {
 
         assertThat(capturedRequest.getEmail()).isEqualTo("ivan@example.com");
 
-        assertThat(capturedRequest.getPassword()).isEqualTo("plain-password");
+        assertThat(capturedRequest.getPassword()).isEqualTo("validpass1");
 
         assertThat(capturedRequest.getCurrency()).isEqualTo(SupportedCurrency.USD);
     }
@@ -104,6 +104,65 @@ class AuthControllerTest {
                                         """)
                 )
                 .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void registerWithMalformedJsonReturnsConsistentBadRequestResponse() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "username": "ivan",
+                                          "email": "ivan@example.com"
+                                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Malformed request body"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.errors").isEmpty());
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void registerWithPasswordShorterThanTenCharactersReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "username": "ivan",
+                                          "email": "ivan@example.com",
+                                          "password": "shortpass",
+                                          "currency": "USD"
+                                        }
+                                        """)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.password").value("Password must be between 10 and 64 characters"));
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void registerWithPasswordLongerThanSixtyFourCharactersReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "username": "ivan",
+                                          "email": "ivan@example.com",
+                                          "password": "%s",
+                                          "currency": "USD"
+                                        }
+                                        """.formatted("a".repeat(65)))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.password").value("Password must be between 10 and 64 characters"));
 
         verifyNoInteractions(authService);
     }
