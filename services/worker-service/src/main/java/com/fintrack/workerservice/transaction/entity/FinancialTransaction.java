@@ -75,6 +75,36 @@ public class FinancialTransaction {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    //creates a transaction entity with no category and PENDING processing status
+    public static FinancialTransaction createImported(Long accountId,
+                                                      TransactionType transactionType,
+                                                      BigDecimal amount,
+                                                      String merchant,
+                                                      String description,
+                                                      LocalDate transactionDate) {
+        FinancialTransaction transaction = new FinancialTransaction();
+
+        transaction.accountId = Objects.requireNonNull(accountId, "Account ID is required");
+        transaction.transactionType = Objects.requireNonNull(
+                transactionType,
+                "Transaction type is required"
+        );
+        transaction.amount = Objects.requireNonNull(amount, "Amount is required");
+        transaction.merchant = merchant;
+        transaction.description = description;
+        transaction.transactionDate = Objects.requireNonNull(
+                transactionDate,
+                "Transaction date is required"
+        );
+
+        transaction.categoryId = null;
+        transaction.processingStatus = ProcessingStatus.PENDING;
+        transaction.source = TransactionSource.IMPORT;
+        transaction.manualCategoryOverride = false;
+
+        return transaction;
+    }
+
     public void assignAutomaticCategory(Long categoryId) {
         if (!manualCategoryOverride) {
             this.categoryId = Objects.requireNonNull(
