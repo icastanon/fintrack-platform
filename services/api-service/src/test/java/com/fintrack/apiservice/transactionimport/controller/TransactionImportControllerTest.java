@@ -9,7 +9,9 @@ import com.fintrack.apiservice.common.exception.GlobalExceptionHandler;
 import com.fintrack.apiservice.transactionimport.dto.TransactionImportResponse;
 import com.fintrack.apiservice.transactionimport.entity.TransactionImportStatus;
 import com.fintrack.apiservice.transactionimport.exception.InvalidTransactionImportFileException;
+import com.fintrack.apiservice.transactionimport.exception.TransactionImportNotFoundException;
 import com.fintrack.apiservice.transactionimport.exception.TransactionImportStorageException;
+import com.fintrack.apiservice.transactionimport.service.TransactionImportService;
 import com.fintrack.apiservice.transactionimport.service.TransactionImportSubmissionService;
 import com.fintrack.apiservice.user.entity.Role;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -55,6 +58,9 @@ class TransactionImportControllerTest {
 
     @MockitoBean
     private TransactionImportSubmissionService submissionService;
+
+    @MockitoBean
+    private TransactionImportService transactionImportService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -213,6 +219,73 @@ class TransactionImportControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(submissionService);
+    }
+
+    @Test
+    void getImportReturnsOwnedImportStatus() throws Exception {
+        TransactionImportResponse response = createResponse();
+
+        when(transactionImportService.getImport(7L, 41L)).thenReturn(response);
+
+        mockMvc.perform(
+                        get("/api/v1/imports/41")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(41))
+                .andExpect(jsonPath("$.accountId").value(15))
+                .andExpect(jsonPath("$.accountName").value("Primary Checking"))
+                .andExpect(jsonPath("$.originalFileName").value("august-transactions.csv"))
+                .andExpect(jsonPath("$.contentType").value("text/csv"))
+                .andExpect(jsonPath("$.fileSizeBytes").value(CSV_CONTENT.length))
+                .andExpect(jsonPath("$.status").value("QUEUED"))
+                .andExpect(jsonPath("$.processedRows").value(0))
+                .andExpect(jsonPath("$.successfulRows").value(0))
+                .andExpect(jsonPath("$.skippedRows").value(0))
+                .andExpect(jsonPath("$.failedRows").value(0))
+                .andExpect(jsonPath("$.rejectedOutputAvailable").value(false))
+                .andExpect(jsonPath("$.version").value(0));
+
+        verify(transactionImportService).getImport(7L, 41L);
+    }
+
+    @Test
+    void getImportForMissingOrUnownedImportReturnsNotFound() throws Exception {
+        when(transactionImportService.getImport(7L, 41L))
+                .thenThrow(new TransactionImportNotFoundException());
+
+        mockMvc.perform(
+                        get("/api/v1/imports/41")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Transaction import was not found"))
+                .andExpect(jsonPath("$.errors").isEmpty())
+                .andExpect(jsonPath("$.timestamp").exists());
+
+        verify(transactionImportService).getImport(7L, 41L);
+    }
+
+    @Test
+    void getImportWithNonPositiveIdReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/imports/0")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(transactionImportService);
+    }
+
+    @Test
+    void getImportWithoutJwtReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/imports/41"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(transactionImportService);
     }
 
     private MockMultipartFile createFile() {

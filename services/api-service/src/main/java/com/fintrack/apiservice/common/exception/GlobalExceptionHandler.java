@@ -11,6 +11,7 @@ import com.fintrack.apiservice.notification.exception.NotificationNotFoundExcept
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoundException;
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.transactionimport.exception.InvalidTransactionImportFileException;
+import com.fintrack.apiservice.transactionimport.exception.TransactionImportNotFoundException;
 import com.fintrack.apiservice.transactionimport.exception.TransactionImportStorageException;
 import com.fintrack.apiservice.user.exception.EmailAlreadyExistsException;
 import com.fintrack.apiservice.user.exception.FintrackUserNotFoundException;
@@ -327,6 +328,17 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+
+    @ExceptionHandler(TransactionImportNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTransactionImportNotFound(TransactionImportNotFoundException exception) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                exception.getMessage(),
+                Map.of()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
 

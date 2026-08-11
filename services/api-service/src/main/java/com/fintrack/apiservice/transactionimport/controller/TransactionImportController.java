@@ -2,6 +2,7 @@ package com.fintrack.apiservice.transactionimport.controller;
 
 import com.fintrack.apiservice.auth.dto.AuthenticatedUserPrincipal;
 import com.fintrack.apiservice.transactionimport.dto.TransactionImportResponse;
+import com.fintrack.apiservice.transactionimport.service.TransactionImportService;
 import com.fintrack.apiservice.transactionimport.service.TransactionImportSubmissionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -22,9 +23,12 @@ import static com.fintrack.apiservice.common.config.OpenApiConfig.BEARER_AUTH;
 public class TransactionImportController {
 
     private final TransactionImportSubmissionService submissionService;
+    private final TransactionImportService transactionImportService;
 
-    public TransactionImportController(TransactionImportSubmissionService submissionService) {
+    public TransactionImportController(TransactionImportSubmissionService submissionService,
+                                       TransactionImportService transactionImportService) {
         this.submissionService = submissionService;
+        this.transactionImportService = transactionImportService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -44,5 +48,22 @@ public class TransactionImportController {
         );
 
         return ResponseEntity.accepted().body(response);
+    }
+
+    @GetMapping("/{importId}")
+    @Operation(
+            summary = "Get transaction import",
+            description = "Returns the current status and progress of one import owned by the authenticated user"
+    )
+    public ResponseEntity<TransactionImportResponse> getImport(
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal,
+            @PathVariable @Positive(message = "Import ID must be positive") Long importId
+    ) {
+        TransactionImportResponse response = transactionImportService.getImport(
+                principal.getUserId(),
+                importId
+        );
+
+        return ResponseEntity.ok(response);
     }
 }
