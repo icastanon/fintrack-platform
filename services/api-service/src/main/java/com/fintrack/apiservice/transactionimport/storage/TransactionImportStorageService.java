@@ -5,10 +5,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.InputStream;
@@ -45,6 +48,23 @@ public class TransactionImportStorageService {
             return objectKey;
         } catch (SdkException | UncheckedIOException exception) {
             throw new TransactionImportStorageException("Failed to upload the transaction import file", exception);
+        }
+    }
+
+    public byte[] download(String objectKey) {
+        GetObjectRequest request = GetObjectRequest.builder()
+                .bucket(importBucket)
+                .key(objectKey)
+                .build();
+
+        try {
+            ResponseBytes<GetObjectResponse> response = s3Client.getObjectAsBytes(request);
+            return response.asByteArray();
+        } catch (SdkException | UncheckedIOException exception) {
+            throw new TransactionImportStorageException(
+                    "Failed to download the rejected transaction import file",
+                    exception
+            );
         }
     }
 

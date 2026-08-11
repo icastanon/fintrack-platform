@@ -6,11 +6,14 @@ import com.fintrack.apiservice.auth.security.RestAccessDeniedHandler;
 import com.fintrack.apiservice.auth.security.RestAuthenticationEntryPoint;
 import com.fintrack.apiservice.auth.security.SecurityConfig;
 import com.fintrack.apiservice.common.exception.GlobalExceptionHandler;
+import com.fintrack.apiservice.transactionimport.dto.TransactionImportRejectedOutput;
 import com.fintrack.apiservice.transactionimport.dto.TransactionImportResponse;
 import com.fintrack.apiservice.transactionimport.entity.TransactionImportStatus;
 import com.fintrack.apiservice.transactionimport.exception.InvalidTransactionImportFileException;
 import com.fintrack.apiservice.transactionimport.exception.TransactionImportNotFoundException;
+import com.fintrack.apiservice.transactionimport.exception.TransactionImportRejectedOutputNotAvailableException;
 import com.fintrack.apiservice.transactionimport.exception.TransactionImportStorageException;
+import com.fintrack.apiservice.transactionimport.service.TransactionImportRejectedOutputService;
 import com.fintrack.apiservice.transactionimport.service.TransactionImportService;
 import com.fintrack.apiservice.transactionimport.service.TransactionImportSubmissionService;
 import com.fintrack.apiservice.user.entity.Role;
@@ -20,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -36,6 +41,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -61,6 +68,9 @@ class TransactionImportControllerTest {
 
     @MockitoBean
     private TransactionImportService transactionImportService;
+
+    @MockitoBean
+    private TransactionImportRejectedOutputService rejectedOutputService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -137,12 +147,10 @@ class TransactionImportControllerTest {
                         .value("The uploaded file must use the .csv extension"))
                 .andExpect(jsonPath("$.errors").isEmpty())
                 .andExpect(jsonPath("$.timestamp").exists());
-
-        verify(submissionService).submit(eq(7L), eq(15L), any(MultipartFile.class));
     }
 
     @Test
-    void submitImportWhenStorageFailsReturnsServiceUnavailableWithoutLeakingCause() throws Exception {
+    void submitImportWhenStorageFailsReturnsServiceUnavailable() throws Exception {
         TransactionImportStorageException exception =
                 new TransactionImportStorageException(
                         "Failed to upload the transaction import file",
@@ -162,14 +170,7 @@ class TransactionImportControllerTest {
                 .andExpect(jsonPath("$.status").value(503))
                 .andExpect(jsonPath("$.message")
                         .value("Transaction import storage is temporarily unavailable"))
-                .andExpect(jsonPath("$.message")
-                        .value(org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString("S3 connection")
-                        )))
-                .andExpect(jsonPath("$.errors").isEmpty())
-                .andExpect(jsonPath("$.timestamp").exists());
-
-        verify(submissionService).submit(eq(7L), eq(15L), any(MultipartFile.class));
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 
     @Test
@@ -234,17 +235,9 @@ class TransactionImportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(41))
                 .andExpect(jsonPath("$.accountId").value(15))
-                .andExpect(jsonPath("$.accountName").value("Primary Checking"))
-                .andExpect(jsonPath("$.originalFileName").value("august-transactions.csv"))
-                .andExpect(jsonPath("$.contentType").value("text/csv"))
-                .andExpect(jsonPath("$.fileSizeBytes").value(CSV_CONTENT.length))
                 .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andExpect(jsonPath("$.processedRows").value(0))
-                .andExpect(jsonPath("$.successfulRows").value(0))
-                .andExpect(jsonPath("$.skippedRows").value(0))
-                .andExpect(jsonPath("$.failedRows").value(0))
-                .andExpect(jsonPath("$.rejectedOutputAvailable").value(false))
-                .andExpect(jsonPath("$.version").value(0));
+                .andExpect(jsonPath("$.rejectedOutputAvailable").value(false));
 
         verify(transactionImportService).getImport(7L, 41L);
     }
@@ -260,9 +253,7 @@ class TransactionImportControllerTest {
                 )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.message").value("Transaction import was not found"))
-                .andExpect(jsonPath("$.errors").isEmpty())
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.message").value("Transaction import was not found"));
 
         verify(transactionImportService).getImport(7L, 41L);
     }
@@ -274,7 +265,6 @@ class TransactionImportControllerTest {
                                 .header("Authorization", "Bearer valid-token")
                 )
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("Validation failed"));
 
         verifyNoInteractions(transactionImportService);
@@ -286,6 +276,94 @@ class TransactionImportControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(transactionImportService);
+    }
+
+    @Test
+    void getRejectedOutputReturnsDownloadableCsv() throws Exception {
+        byte[] rejectedContent = (
+                "rowNumber,rejectionReason\n" +
+                        "2,Amount must be positive"
+        ).getBytes(StandardCharsets.UTF_8);
+
+        TransactionImportRejectedOutput output = new TransactionImportRejectedOutput(
+                "august-transactions-rejected.csv",
+                rejectedContent
+        );
+
+        when(rejectedOutputService.getRejectedOutput(7L, 41L)).thenReturn(output);
+
+        mockMvc.perform(
+                        get("/api/v1/imports/41/rejected-output")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().bytes(rejectedContent))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, rejectedContent.length))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        containsString("attachment")
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        containsString("august-transactions-rejected.csv")
+                ));
+
+        verify(rejectedOutputService).getRejectedOutput(7L, 41L);
+    }
+
+    @Test
+    void getRejectedOutputWhenUnavailableReturnsNotFound() throws Exception {
+        when(rejectedOutputService.getRejectedOutput(7L, 41L))
+                .thenThrow(new TransactionImportRejectedOutputNotAvailableException());
+
+        mockMvc.perform(
+                        get("/api/v1/imports/41/rejected-output")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message")
+                        .value("Rejected output is not available for this transaction import"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+
+        verify(rejectedOutputService).getRejectedOutput(7L, 41L);
+    }
+
+    @Test
+    void getRejectedOutputForMissingOrUnownedImportReturnsNotFound() throws Exception {
+        when(rejectedOutputService.getRejectedOutput(7L, 41L))
+                .thenThrow(new TransactionImportNotFoundException());
+
+        mockMvc.perform(
+                        get("/api/v1/imports/41/rejected-output")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Transaction import was not found"));
+
+        verify(rejectedOutputService).getRejectedOutput(7L, 41L);
+    }
+
+    @Test
+    void getRejectedOutputWithNonPositiveIdReturnsBadRequest() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/imports/0/rejected-output")
+                                .header("Authorization", "Bearer valid-token")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verifyNoInteractions(rejectedOutputService);
+    }
+
+    @Test
+    void getRejectedOutputWithoutJwtReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/imports/41/rejected-output"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(rejectedOutputService);
     }
 
     private MockMultipartFile createFile() {

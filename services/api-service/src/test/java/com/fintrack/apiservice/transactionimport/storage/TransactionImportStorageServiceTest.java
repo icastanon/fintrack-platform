@@ -7,11 +7,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
@@ -74,6 +77,7 @@ class TransactionImportStorageServiceTest {
     @Test
     void uploadTranslatesSdkFailureIntoStorageException() {
         byte[] content = "transactionDate,type,amount".getBytes(StandardCharsets.UTF_8);
+
         SdkClientException sdkException = SdkClientException.builder()
                 .message("S3 unavailable")
                 .build();
@@ -81,14 +85,66 @@ class TransactionImportStorageServiceTest {
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenThrow(sdkException);
 
-        assertThatThrownBy(() -> storageService.upload(
-                7L,
-                new ByteArrayInputStream(content),
-                content.length,
-                "text/csv"
-        ))
+        assertThatThrownBy(() ->
+                storageService.upload(
+                        7L,
+                        new ByteArrayInputStream(content),
+                        content.length,
+                        "text/csv"
+                )
+        )
                 .isInstanceOf(TransactionImportStorageException.class)
                 .hasMessage("Failed to upload the transaction import file")
+                .hasCause(sdkException);
+    }
+
+    @Test
+    void downloadReturnsRejectedCsvFromImportBucket() {
+        String objectKey = "imports/7/test-id/rejected.csv";
+
+        byte[] rejectedContent = (
+                "rowNumber,rejectionReason\n" +
+                        "2,Amount must be positive"
+        ).getBytes(StandardCharsets.UTF_8);
+
+        GetObjectResponse getObjectResponse = GetObjectResponse.builder()
+                .contentLength((long) rejectedContent.length)
+                .contentType("text/csv")
+                .build();
+
+        ResponseBytes<GetObjectResponse> responseBytes =
+                ResponseBytes.fromByteArray(getObjectResponse, rejectedContent);
+
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(responseBytes);
+
+        byte[] result = storageService.download(objectKey);
+
+        ArgumentCaptor<GetObjectRequest> requestCaptor = ArgumentCaptor.forClass(GetObjectRequest.class);
+
+        verify(s3Client).getObjectAsBytes(requestCaptor.capture());
+
+        GetObjectRequest request = requestCaptor.getValue();
+
+        assertThat(request.bucket()).isEqualTo("fintrack-imports");
+        assertThat(request.key()).isEqualTo(objectKey);
+        assertThat(result).isEqualTo(rejectedContent);
+    }
+
+    @Test
+    void downloadTranslatesSdkFailureIntoStorageException() {
+        String objectKey = "imports/7/test-id/rejected.csv";
+
+        SdkClientException sdkException = SdkClientException.builder()
+                .message("S3 unavailable")
+                .build();
+
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenThrow(sdkException);
+
+        assertThatThrownBy(() -> storageService.download(objectKey))
+                .isInstanceOf(TransactionImportStorageException.class)
+                .hasMessage("Failed to download the rejected transaction import file")
                 .hasCause(sdkException);
     }
 
@@ -99,7 +155,8 @@ class TransactionImportStorageServiceTest {
 
         storageService.deleteQuietly("imports/7/test-id/source.csv");
 
-        ArgumentCaptor<DeleteObjectRequest> requestCaptor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        ArgumentCaptor<DeleteObjectRequest> requestCaptor =
+                ArgumentCaptor.forClass(DeleteObjectRequest.class);
 
         verify(s3Client).deleteObject(requestCaptor.capture());
 
@@ -112,10 +169,15 @@ class TransactionImportStorageServiceTest {
     @Test
     void deleteQuietlyDoesNotPropagateSdkFailure() {
         when(s3Client.deleteObject(any(DeleteObjectRequest.class)))
-                .thenThrow(SdkClientException.builder().message("S3 unavailable").build());
+                .thenThrow(
+                        SdkClientException.builder()
+                                .message("S3 unavailable")
+                                .build()
+                );
 
-        assertThatCode(() -> storageService.deleteQuietly("imports/7/test-id/source.csv"))
-                .doesNotThrowAnyException();
+        assertThatCode(() ->
+                storageService.deleteQuietly("imports/7/test-id/source.csv")
+        ).doesNotThrowAnyException();
 
         verify(s3Client).deleteObject(any(DeleteObjectRequest.class));
     }
