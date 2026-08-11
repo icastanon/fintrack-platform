@@ -50,4 +50,23 @@ public class RateLimitConfiguration {
 
         return registration;
     }
+
+    @Bean
+    public FilterRegistrationBean<ImportSubmissionRateLimitFilter> importSubmissionRateLimitFilter(RedisFixedWindowRateLimiter rateLimiter,
+                                                                                                   JsonMapper jsonMapper,
+                                                                                                   RateLimitProperties properties) {
+        ImportSubmissionRateLimitFilter filter = new ImportSubmissionRateLimitFilter(
+                rateLimiter,
+                jsonMapper,
+                properties.getImportSubmissionLimit(),
+                properties.getImportSubmissionWindow()
+        );
+
+        FilterRegistrationBean<ImportSubmissionRateLimitFilter> registration = new FilterRegistrationBean<>(filter);
+
+        registration.setName("importSubmissionRateLimitFilter");
+        registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 2);
+
+        return registration;
+    }
 }

@@ -17,5 +17,6 @@ public class RateLimitProperties {
     private Duration registrationWindow;
     private int authenticatedUserLimit;
     private Duration authenticatedUserWindow;
-
+    private int importSubmissionLimit;
+    private Duration importSubmissionWindow;
 }
