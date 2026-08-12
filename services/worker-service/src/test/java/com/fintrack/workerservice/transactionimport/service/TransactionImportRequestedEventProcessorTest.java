@@ -19,6 +19,7 @@ import org.springframework.batch.core.launch.JobRestartException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,12 +84,15 @@ class TransactionImportRequestedEventProcessorTest {
     }
 
     @Test
-    void processFinalizesPreviouslyCompletedJobInstance() throws Exception {
+    void processFinalizesPersistedCompletedExecution() throws Exception {
         TransactionImportRequestedEvent event = event();
         JobInstanceAlreadyCompleteException cause =
                 new JobInstanceAlreadyCompleteException("Job instance already completed");
 
         when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.findLastExecution(event)).thenReturn(Optional.of(jobExecution));
+        when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
+        when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
         when(jobFinalizationService.complete(event)).thenReturn(true);
 
         boolean firstCompletion = eventProcessor.process(event);
@@ -96,7 +100,50 @@ class TransactionImportRequestedEventProcessorTest {
         assertThat(firstCompletion).isTrue();
 
         verify(jobLaunchService).launch(event);
+        verify(jobLaunchService).findLastExecution(event);
         verify(jobFinalizationService).complete(event);
+    }
+
+    @Test
+    void processDoesNotTreatPersistedAbandonedExecutionAsCompleted() throws Exception {
+        TransactionImportRequestedEvent event = event();
+        JobInstanceAlreadyCompleteException cause =
+                new JobInstanceAlreadyCompleteException("Job instance cannot be restarted");
+        String expectedSummary =
+                "Transaction import job execution 81 finished with status ABANDONED";
+
+        when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.findLastExecution(event)).thenReturn(Optional.of(jobExecution));
+        when(jobExecution.getStatus()).thenReturn(BatchStatus.ABANDONED);
+        when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
+        when(jobExecution.getAllFailureExceptions()).thenReturn(List.of());
+
+        assertThatThrownBy(() -> eventProcessor.process(event))
+                .isInstanceOf(TransactionImportJobProcessingException.class)
+                .hasMessage(expectedSummary);
+
+        verify(jobLaunchService).findLastExecution(event);
+        verify(jobFinalizationService).fail(event, expectedSummary);
+    }
+
+    @Test
+    void processRejectsExistingTerminalInstanceWithoutExecutionMetadata() throws Exception {
+        TransactionImportRequestedEvent event = event();
+        JobInstanceAlreadyCompleteException cause =
+                new JobInstanceAlreadyCompleteException("Job instance already completed");
+
+        when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.findLastExecution(event)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> eventProcessor.process(event))
+                .isInstanceOf(TransactionImportJobProcessingException.class)
+                .hasMessage(
+                        "Spring Batch reported an existing terminal job instance but no execution metadata was found for import 41"
+                )
+                .hasCause(cause);
+
+        verify(jobLaunchService).findLastExecution(event);
+        verifyNoInteractions(jobFinalizationService);
     }
 
     @Test

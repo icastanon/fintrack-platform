@@ -36,7 +36,7 @@ public class TransactionImportRequestedEventProcessor {
             JobExecution jobExecution = jobLaunchService.launch(event);
             return handleExecutionResult(event, jobExecution);
         } catch (JobInstanceAlreadyCompleteException exception) {
-            return handleAlreadyCompleted(event);
+            return handleExistingTerminalJob(event, exception);
         } catch (JobExecutionAlreadyRunningException exception) {
             throw new TransactionImportJobProcessingException(
                     "Transaction import job is already running for import " + event.getImportId(),
@@ -50,14 +50,25 @@ public class TransactionImportRequestedEventProcessor {
         }
     }
 
+    private boolean handleExistingTerminalJob(TransactionImportRequestedEvent event,
+                                              JobInstanceAlreadyCompleteException cause) {
+        JobExecution jobExecution = jobLaunchService.findLastExecution(event)
+                .orElseThrow(() -> new TransactionImportJobProcessingException(
+                        "Spring Batch reported an existing terminal job instance but no execution metadata was found for import "
+                                + event.getImportId(),
+                        cause
+                ));
+
+        return handleExecutionResult(event, jobExecution);
+    }
+
     private boolean handleExecutionResult(TransactionImportRequestedEvent event,
                                           JobExecution jobExecution) {
         BatchStatus status = jobExecution.getStatus();
 
         return switch (status) {
             case COMPLETED -> complete(event, jobExecution);
-            case FAILED, STOPPED, ABANDONED, UNKNOWN ->
-                    handleUnsuccessfulExecution(event, jobExecution);
+            case FAILED, STOPPED, ABANDONED, UNKNOWN -> handleUnsuccessfulExecution(event, jobExecution);
             case STARTING, STARTED, STOPPING ->
                     throw new TransactionImportJobProcessingException(
                             "Transaction import job returned before reaching a terminal status for import "
@@ -74,19 +85,6 @@ public class TransactionImportRequestedEventProcessor {
                 event.getEventId(),
                 event.getImportId(),
                 jobExecution.getId(),
-                firstCompletion
-        );
-
-        return firstCompletion;
-    }
-
-    private boolean handleAlreadyCompleted(TransactionImportRequestedEvent event) {
-        boolean firstCompletion = jobFinalizationService.complete(event);
-
-        LOGGER.info(
-                "Finalized previously completed transaction import: eventId={}, importId={}, firstCompletion={}",
-                event.getEventId(),
-                event.getImportId(),
                 firstCompletion
         );
 
