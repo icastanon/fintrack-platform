@@ -38,4 +38,6 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
                                     @Param("categoryId") Long categoryId,
                                     @Param("monthStart") LocalDate monthStart,
                                     @Param("nextMonthStart") LocalDate nextMonthStart);
+
+    long countByImportId(Long importId);
 }

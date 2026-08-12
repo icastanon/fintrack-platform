@@ -23,6 +23,8 @@ import java.time.Instant;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TransactionImport {
 
+    private static final int MAXIMUM_FAILURE_SUMMARY_LENGTH = 1000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -84,4 +86,82 @@ public class TransactionImport {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public void markRunning() {
+        if (status == TransactionImportStatus.COMPLETED) {
+            throw new IllegalStateException("A completed transaction import cannot be restarted");
+        }
+
+        status = TransactionImportStatus.RUNNING;
+        completedAt = null;
+        failureSummary = null;
+
+        if (startedAt == null) {
+            startedAt = Instant.now();
+        }
+    }
+
+    public void markCompleted(long successfulRows, long skippedRows, long failedRows) {
+        validateRowCounts(successfulRows, skippedRows, failedRows);
+
+        if (status == TransactionImportStatus.COMPLETED) {
+            return;
+        }
+
+        if (status != TransactionImportStatus.RUNNING) {
+            throw new IllegalStateException("Only a running transaction import can be completed");
+        }
+
+        long finalProcessedRows = successfulRows + skippedRows + failedRows;
+
+        status = TransactionImportStatus.COMPLETED;
+        totalRows = finalProcessedRows;
+        processedRows = finalProcessedRows;
+        this.successfulRows = successfulRows;
+        this.skippedRows = skippedRows;
+        this.failedRows = failedRows;
+        failureSummary = null;
+        completedAt = Instant.now();
+    }
+
+    public void markFailed(long successfulRows, long skippedRows, long failedRows,
+                           String failureSummary) {
+        validateRowCounts(successfulRows, skippedRows, failedRows);
+
+        if (status == TransactionImportStatus.COMPLETED) {
+            throw new IllegalStateException("A completed transaction import cannot be failed");
+        }
+
+        String normalizedFailureSummary = normalizeFailureSummary(failureSummary);
+        long finalProcessedRows = successfulRows + skippedRows + failedRows;
+
+        status = TransactionImportStatus.FAILED;
+        totalRows = null;
+        processedRows = finalProcessedRows;
+        this.successfulRows = successfulRows;
+        this.skippedRows = skippedRows;
+        this.failedRows = failedRows;
+        this.failureSummary = normalizedFailureSummary;
+        completedAt = Instant.now();
+    }
+
+    private void validateRowCounts(long successfulRows, long skippedRows, long failedRows) {
+        if (successfulRows < 0 || skippedRows < 0 || failedRows < 0) {
+            throw new IllegalArgumentException("Transaction import row counts cannot be negative");
+        }
+    }
+
+    private String normalizeFailureSummary(String failureSummary) {
+        if (failureSummary == null || failureSummary.isBlank()) {
+            throw new IllegalArgumentException("Transaction import failure summary is required");
+        }
+
+        String normalizedFailureSummary = failureSummary.trim();
+
+        if (normalizedFailureSummary.length() > MAXIMUM_FAILURE_SUMMARY_LENGTH) {
+            return normalizedFailureSummary.substring(0, MAXIMUM_FAILURE_SUMMARY_LENGTH);
+        }
+
+        return normalizedFailureSummary;
+    }
 }
