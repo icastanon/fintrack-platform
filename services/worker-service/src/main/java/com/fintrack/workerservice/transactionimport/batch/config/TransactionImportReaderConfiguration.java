@@ -34,8 +34,7 @@ public class TransactionImportReaderConfiguration {
     @StepScope
     public FlatFileItemReader<TransactionImportCsvRow> transactionImportCsvReader(
             @Value("#{jobParameters['sourceObjectKey']}") String sourceObjectKey) {
-        InputStreamSource inputStreamSource =
-                () -> transactionImportStorageService.openSource(sourceObjectKey);
+        InputStreamSource inputStreamSource = () -> transactionImportStorageService.openSource(sourceObjectKey);
 
         InputStreamResource sourceResource =
                 new InputStreamResource(inputStreamSource, "S3 transaction import source " + sourceObjectKey);

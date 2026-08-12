@@ -2,6 +2,7 @@ package com.fintrack.workerservice.transactionimport.listener;
 
 import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.transactionimport.exception.UnsupportedTransactionImportRequestedEventVersionException;
+import com.fintrack.workerservice.transactionimport.service.TransactionImportRequestedEventProcessor;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,12 @@ public class TransactionImportRequestedEventListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(TransactionImportRequestedEventListener.class);
 
     private static final String CORRELATION_ID_MDC_KEY = "correlationId";
+
+    private final TransactionImportRequestedEventProcessor eventProcessor;
+
+    public TransactionImportRequestedEventListener(TransactionImportRequestedEventProcessor eventProcessor) {
+        this.eventProcessor = eventProcessor;
+    }
 
     @SqsListener("${fintrack.sqs.import-jobs-queue}")
     public void handle(TransactionImportRequestedEvent event) {
@@ -31,6 +38,15 @@ public class TransactionImportRequestedEventListener {
                     event.getSourceObjectKey(),
                     event.getEventVersion(),
                     event.getOccurredAt()
+            );
+
+            boolean firstCompletion = eventProcessor.process(event);
+
+            LOGGER.info(
+                    "Finished transaction-import request: eventId={}, importId={}, firstCompletion={}",
+                    event.getEventId(),
+                    event.getImportId(),
+                    firstCompletion
             );
         } finally {
             MDC.remove(CORRELATION_ID_MDC_KEY);
