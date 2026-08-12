@@ -17,4 +17,5 @@ public class ValidatedTransactionImportRow {
     private final BigDecimal amount;
     private final String merchant;
     private final String description;
+    private final Long categoryId;
 }

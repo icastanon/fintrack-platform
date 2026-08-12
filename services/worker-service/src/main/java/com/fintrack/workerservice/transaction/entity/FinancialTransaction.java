@@ -36,6 +36,12 @@ public class FinancialTransaction {
     @Column(name = "category_id")
     private Long categoryId;
 
+    @Column(name = "import_id", updatable = false)
+    private Long importId;
+
+    @Column(name = "import_row_number", updatable = false)
+    private Integer importRowNumber;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "transaction_type", nullable = false, length = 20)
     private TransactionType transactionType;
@@ -75,30 +81,27 @@ public class FinancialTransaction {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    //creates a transaction entity with no category and PENDING processing status
-    public static FinancialTransaction createImported(Long accountId,
-                                                      TransactionType transactionType,
-                                                      BigDecimal amount,
-                                                      String merchant,
-                                                      String description,
+    public static FinancialTransaction createImported(Long importId, int importRowNumber,
+                                                      Long accountId, Long categoryId,
+                                                      TransactionType transactionType, BigDecimal amount,
+                                                      String merchant, String description,
                                                       LocalDate transactionDate) {
+        if (importRowNumber < 2) {
+            throw new IllegalArgumentException("Import row number must be at least 2");
+        }
+
         FinancialTransaction transaction = new FinancialTransaction();
 
+        transaction.importId = Objects.requireNonNull(importId, "Import ID is required");
+        transaction.importRowNumber = importRowNumber;
         transaction.accountId = Objects.requireNonNull(accountId, "Account ID is required");
-        transaction.transactionType = Objects.requireNonNull(
-                transactionType,
-                "Transaction type is required"
-        );
+        transaction.categoryId = Objects.requireNonNull(categoryId, "Category ID is required");
+        transaction.transactionType = Objects.requireNonNull(transactionType, "Transaction type is required");
         transaction.amount = Objects.requireNonNull(amount, "Amount is required");
         transaction.merchant = merchant;
         transaction.description = description;
-        transaction.transactionDate = Objects.requireNonNull(
-                transactionDate,
-                "Transaction date is required"
-        );
-
-        transaction.categoryId = null;
-        transaction.processingStatus = ProcessingStatus.PENDING;
+        transaction.transactionDate = Objects.requireNonNull(transactionDate, "Transaction date is required");
+        transaction.processingStatus = ProcessingStatus.PROCESSED;
         transaction.source = TransactionSource.IMPORT;
         transaction.manualCategoryOverride = false;
 
@@ -107,10 +110,7 @@ public class FinancialTransaction {
 
     public void assignAutomaticCategory(Long categoryId) {
         if (!manualCategoryOverride) {
-            this.categoryId = Objects.requireNonNull(
-                    categoryId,
-                    "Category ID is required"
-            );
+            this.categoryId = Objects.requireNonNull(categoryId, "Category ID is required");
         }
     }
 

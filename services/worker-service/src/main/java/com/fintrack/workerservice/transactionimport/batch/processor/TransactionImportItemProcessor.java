@@ -1,18 +1,19 @@
 package com.fintrack.workerservice.transactionimport.batch.processor;
 
+import com.fintrack.workerservice.category.cache.model.CategorizationRuleCacheSnapshot;
+import com.fintrack.workerservice.category.service.CategorizationService;
 import com.fintrack.workerservice.transaction.entity.TransactionType;
 import com.fintrack.workerservice.transactionimport.batch.model.TransactionImportCsvRow;
 import com.fintrack.workerservice.transactionimport.batch.model.ValidatedTransactionImportRow;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportRowValidationException;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
-import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
+import java.util.Objects;
 
-@Component
 public class TransactionImportItemProcessor implements ItemProcessor<TransactionImportCsvRow, ValidatedTransactionImportRow> {
 
     private static final BigDecimal MINIMUM_AMOUNT = new BigDecimal("0.01");
@@ -20,6 +21,15 @@ public class TransactionImportItemProcessor implements ItemProcessor<Transaction
     private static final int MAXIMUM_FRACTION_DIGITS = 2;
     private static final int MAXIMUM_MERCHANT_LENGTH = 200;
     private static final int MAXIMUM_DESCRIPTION_LENGTH = 500;
+
+    private final CategorizationService categorizationService;
+    private final CategorizationRuleCacheSnapshot ruleSnapshot;
+
+    public TransactionImportItemProcessor(CategorizationService categorizationService,
+                                          CategorizationRuleCacheSnapshot ruleSnapshot) {
+        this.categorizationService = Objects.requireNonNull(categorizationService, "Categorization service is required");
+        this.ruleSnapshot = Objects.requireNonNull(ruleSnapshot, "Categorization rule snapshot is required");
+    }
 
     @Override
     public ValidatedTransactionImportRow process(TransactionImportCsvRow row) {
@@ -32,21 +42,22 @@ public class TransactionImportItemProcessor implements ItemProcessor<Transaction
                 row.getMerchant(),
                 MAXIMUM_MERCHANT_LENGTH,
                 "merchant",
-                rowNumber
-        );
+                rowNumber);
         String description = normalizeOptionalText(
                 row.getDescription(),
                 MAXIMUM_DESCRIPTION_LENGTH,
                 "description",
-                rowNumber
-        );
+                rowNumber);
+
+        Long categoryId = categorizationService.categorizeMerchant(merchant, ruleSnapshot);
 
         return new ValidatedTransactionImportRow(rowNumber,
                 transactionDate,
                 transactionType,
                 amount,
                 merchant,
-                description);
+                description,
+                categoryId);
     }
 
     private LocalDate parseTransactionDate(String value, int rowNumber) {
@@ -66,8 +77,7 @@ public class TransactionImportItemProcessor implements ItemProcessor<Transaction
     }
 
     private TransactionType parseTransactionType(String value, int rowNumber) {
-        String normalizedValue = requireText(value, "transaction type is required", rowNumber)
-                .toUpperCase(Locale.ROOT);
+        String normalizedValue = requireText(value, "transaction type is required", rowNumber).toUpperCase(Locale.ROOT);
 
         try {
             return TransactionType.valueOf(normalizedValue);
@@ -89,12 +99,9 @@ public class TransactionImportItemProcessor implements ItemProcessor<Transaction
             int fractionDigits = Math.max(amount.scale(), 0);
             int integerDigits = Math.max(amount.precision() - amount.scale(), 0);
 
-            if (integerDigits > MAXIMUM_INTEGER_DIGITS
-                    || fractionDigits > MAXIMUM_FRACTION_DIGITS) {
-                throw validationException(
-                        rowNumber,
-                        "amount must have at most 17 integer digits and 2 decimal places"
-                );
+            if (integerDigits > MAXIMUM_INTEGER_DIGITS || fractionDigits > MAXIMUM_FRACTION_DIGITS) {
+                throw validationException(rowNumber,
+                        "amount must have at most 17 integer digits and 2 decimal places");
             }
 
             return amount;
@@ -112,10 +119,8 @@ public class TransactionImportItemProcessor implements ItemProcessor<Transaction
         String normalizedValue = value.trim();
 
         if (normalizedValue.length() > maximumLength) {
-            throw validationException(
-                    rowNumber,
-                    fieldName + " must not exceed " + maximumLength + " characters"
-            );
+            throw validationException(rowNumber,
+                    fieldName + " must not exceed " + maximumLength + " characters");
         }
 
         return normalizedValue;

@@ -6,6 +6,8 @@ import com.fintrack.workerservice.category.cache.model.CategorizationRuleCacheSn
 import com.fintrack.workerservice.category.util.MerchantNormalizer;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 @Service
 public class CategorizationService {
 
@@ -16,7 +18,12 @@ public class CategorizationService {
     }
 
     public Long categorizeMerchant(String merchant) {
-        CategorizationRuleCacheSnapshot snapshot = categorizationRuleCache.getSnapshot();
+        return categorizeMerchant(merchant, categorizationRuleCache.getSnapshot());
+    }
+
+    public Long categorizeMerchant(String merchant, CategorizationRuleCacheSnapshot snapshot) {
+        Objects.requireNonNull(snapshot, "Categorization rule snapshot is required");
+
         String normalizedMerchant = MerchantNormalizer.normalize(merchant);
 
         return snapshot.getRules()
