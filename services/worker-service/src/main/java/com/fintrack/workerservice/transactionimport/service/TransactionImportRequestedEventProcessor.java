@@ -78,7 +78,7 @@ public class TransactionImportRequestedEventProcessor {
     }
 
     private boolean complete(TransactionImportRequestedEvent event, JobExecution jobExecution) {
-        boolean firstCompletion = jobFinalizationService.complete(event);
+        boolean firstCompletion = jobFinalizationService.complete(event, jobExecution);
 
         LOGGER.info(
                 "Finalized completed transaction import: eventId={}, importId={}, jobExecutionId={}, firstCompletion={}",
@@ -95,7 +95,7 @@ public class TransactionImportRequestedEventProcessor {
                                                 JobExecution jobExecution) {
         String failureSummary = buildFailureSummary(jobExecution);
 
-        jobFinalizationService.fail(event, failureSummary);
+        jobFinalizationService.fail(event, jobExecution, failureSummary);
 
         throw new TransactionImportJobProcessingException(failureSummary);
     }

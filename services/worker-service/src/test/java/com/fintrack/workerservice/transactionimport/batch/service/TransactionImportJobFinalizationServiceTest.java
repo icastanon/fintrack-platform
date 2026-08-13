@@ -10,8 +10,11 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.step.StepExecution;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,6 +46,15 @@ class TransactionImportJobFinalizationServiceTest {
     @Mock
     private TransactionImportService transactionImportService;
 
+    @Mock
+    private JobExecution jobExecution;
+
+    @Mock
+    private StepExecution firstStepExecution;
+
+    @Mock
+    private StepExecution secondStepExecution;
+
     @InjectMocks
     private TransactionImportJobFinalizationService finalizationService;
 
@@ -58,8 +70,12 @@ class TransactionImportJobFinalizationServiceTest {
         )).thenReturn(true);
 
         when(financialTransactionRepository.countByImportId(IMPORT_ID)).thenReturn(7L);
+        when(jobExecution.getStepExecutions())
+                .thenReturn(Set.of(firstStepExecution, secondStepExecution));
+        when(firstStepExecution.getSkipCount()).thenReturn(2L);
+        when(secondStepExecution.getSkipCount()).thenReturn(1L);
 
-        boolean completed = finalizationService.complete(event);
+        boolean completed = finalizationService.complete(event, jobExecution);
 
         assertThat(completed).isTrue();
 
@@ -81,7 +97,7 @@ class TransactionImportJobFinalizationServiceTest {
                 ACCOUNT_ID,
                 USER_ID,
                 7,
-                0,
+                3,
                 0
         );
     }
@@ -97,7 +113,7 @@ class TransactionImportJobFinalizationServiceTest {
                 TransactionImportRequestedEvent.CURRENT_VERSION
         )).thenReturn(false);
 
-        boolean completed = finalizationService.complete(event);
+        boolean completed = finalizationService.complete(event, jobExecution);
 
         assertThat(completed).isFalse();
 
@@ -107,16 +123,25 @@ class TransactionImportJobFinalizationServiceTest {
                 EVENT_TYPE,
                 TransactionImportRequestedEvent.CURRENT_VERSION
         );
-        verifyNoInteractions(financialTransactionRepository, transactionImportService);
+        verifyNoInteractions(
+                financialTransactionRepository,
+                transactionImportService
+        );
     }
 
     @Test
-    void failCountsCommittedRowsAndMarksImportFailedWithoutRecordingMessage() {
+    void failCountsCommittedAndSkippedRowsWithoutRecordingMessage() {
         TransactionImportRequestedEvent event = event();
 
         when(financialTransactionRepository.countByImportId(IMPORT_ID)).thenReturn(3L);
+        when(jobExecution.getStepExecutions()).thenReturn(Set.of(firstStepExecution));
+        when(firstStepExecution.getSkipCount()).thenReturn(2L);
 
-        finalizationService.fail(event, "Database connection failed");
+        finalizationService.fail(
+                event,
+                jobExecution,
+                "Database connection failed"
+        );
 
         InOrder order = inOrder(
                 financialTransactionRepository,
@@ -129,7 +154,7 @@ class TransactionImportJobFinalizationServiceTest {
                 ACCOUNT_ID,
                 USER_ID,
                 3,
-                0,
+                2,
                 0,
                 "Database connection failed"
         );
@@ -139,7 +164,7 @@ class TransactionImportJobFinalizationServiceTest {
 
     @Test
     void completeRejectsNullEventBeforeUsingDependencies() {
-        assertThatThrownBy(() -> finalizationService.complete(null))
+        assertThatThrownBy(() -> finalizationService.complete(null, jobExecution))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
 
@@ -151,10 +176,46 @@ class TransactionImportJobFinalizationServiceTest {
     }
 
     @Test
+    void completeRejectsNullJobExecutionBeforeUsingDependencies() {
+        assertThatThrownBy(() -> finalizationService.complete(event(), null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Job execution is required");
+
+        verifyNoInteractions(
+                processedMessageService,
+                financialTransactionRepository,
+                transactionImportService
+        );
+    }
+
+    @Test
     void failRejectsNullEventBeforeUsingDependencies() {
-        assertThatThrownBy(() -> finalizationService.fail(null, "Failure"))
+        assertThatThrownBy(() ->
+                finalizationService.fail(
+                        null,
+                        jobExecution,
+                        "Failure"
+                ))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
+
+        verifyNoInteractions(
+                processedMessageService,
+                financialTransactionRepository,
+                transactionImportService
+        );
+    }
+
+    @Test
+    void failRejectsNullJobExecutionBeforeUsingDependencies() {
+        assertThatThrownBy(() ->
+                finalizationService.fail(
+                        event(),
+                        null,
+                        "Failure"
+                ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Job execution is required");
 
         verifyNoInteractions(
                 processedMessageService,

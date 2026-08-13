@@ -4,6 +4,8 @@ import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.idempotency.service.ProcessedMessageService;
 import com.fintrack.workerservice.transaction.repository.FinancialTransactionRepository;
 import com.fintrack.workerservice.transactionimport.service.TransactionImportService;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,8 +30,9 @@ public class TransactionImportJobFinalizationService {
     }
 
     @Transactional
-    public boolean complete(TransactionImportRequestedEvent event) {
+    public boolean complete(TransactionImportRequestedEvent event, JobExecution jobExecution) {
         Objects.requireNonNull(event, "Transaction import requested event is required");
+        Objects.requireNonNull(jobExecution, "Job execution is required");
 
         boolean firstCompletion = processedMessageService.recordIfFirst(
                 event.getEventId(),
@@ -43,13 +46,14 @@ public class TransactionImportJobFinalizationService {
         }
 
         long successfulRows = financialTransactionRepository.countByImportId(event.getImportId());
+        long skippedRows = calculateSkippedRows(jobExecution);
 
         transactionImportService.markCompleted(
                 event.getImportId(),
                 event.getAccountId(),
                 event.getUserId(),
                 successfulRows,
-                0,
+                skippedRows,
                 0
         );
 
@@ -57,19 +61,28 @@ public class TransactionImportJobFinalizationService {
     }
 
     @Transactional
-    public void fail(TransactionImportRequestedEvent event, String failureSummary) {
+    public void fail(TransactionImportRequestedEvent event, JobExecution jobExecution, String failureSummary) {
         Objects.requireNonNull(event, "Transaction import requested event is required");
+        Objects.requireNonNull(jobExecution, "Job execution is required");
 
         long successfulRows = financialTransactionRepository.countByImportId(event.getImportId());
+        long skippedRows = calculateSkippedRows(jobExecution);
 
         transactionImportService.markFailed(
                 event.getImportId(),
                 event.getAccountId(),
                 event.getUserId(),
                 successfulRows,
-                0,
+                skippedRows,
                 0,
                 failureSummary
         );
+    }
+
+    private long calculateSkippedRows(JobExecution jobExecution) {
+        return jobExecution.getStepExecutions()
+                .stream()
+                .mapToLong(StepExecution::getSkipCount)
+                .sum();
     }
 }

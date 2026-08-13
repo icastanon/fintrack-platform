@@ -56,14 +56,14 @@ class TransactionImportRequestedEventProcessorTest {
         when(jobLaunchService.launch(event)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(jobFinalizationService.complete(event)).thenReturn(true);
+        when(jobFinalizationService.complete(event, jobExecution)).thenReturn(true);
 
         boolean firstCompletion = eventProcessor.process(event);
 
         assertThat(firstCompletion).isTrue();
 
         verify(jobLaunchService).launch(event);
-        verify(jobFinalizationService).complete(event);
+        verify(jobFinalizationService).complete(event, jobExecution);
     }
 
     @Test
@@ -73,14 +73,14 @@ class TransactionImportRequestedEventProcessorTest {
         when(jobLaunchService.launch(event)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(jobFinalizationService.complete(event)).thenReturn(false);
+        when(jobFinalizationService.complete(event, jobExecution)).thenReturn(false);
 
         boolean firstCompletion = eventProcessor.process(event);
 
         assertThat(firstCompletion).isFalse();
 
         verify(jobLaunchService).launch(event);
-        verify(jobFinalizationService).complete(event);
+        verify(jobFinalizationService).complete(event, jobExecution);
     }
 
     @Test
@@ -93,7 +93,7 @@ class TransactionImportRequestedEventProcessorTest {
         when(jobLaunchService.findLastExecution(event)).thenReturn(Optional.of(jobExecution));
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(jobFinalizationService.complete(event)).thenReturn(true);
+        when(jobFinalizationService.complete(event, jobExecution)).thenReturn(true);
 
         boolean firstCompletion = eventProcessor.process(event);
 
@@ -101,7 +101,7 @@ class TransactionImportRequestedEventProcessorTest {
 
         verify(jobLaunchService).launch(event);
         verify(jobLaunchService).findLastExecution(event);
-        verify(jobFinalizationService).complete(event);
+        verify(jobFinalizationService).complete(event, jobExecution);
     }
 
     @Test
@@ -123,7 +123,11 @@ class TransactionImportRequestedEventProcessorTest {
                 .hasMessage(expectedSummary);
 
         verify(jobLaunchService).findLastExecution(event);
-        verify(jobFinalizationService).fail(event, expectedSummary);
+        verify(jobFinalizationService).fail(
+                event,
+                jobExecution,
+                expectedSummary
+        );
     }
 
     @Test
@@ -180,6 +184,8 @@ class TransactionImportRequestedEventProcessorTest {
     @Test
     void processMarksFailedExecutionAndPropagatesFailure() throws Exception {
         TransactionImportRequestedEvent event = event();
+        String expectedSummary =
+                "Transaction import job execution 81 finished with status FAILED: Database unavailable";
 
         when(jobLaunchService.launch(event)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.FAILED);
@@ -189,13 +195,12 @@ class TransactionImportRequestedEventProcessorTest {
 
         assertThatThrownBy(() -> eventProcessor.process(event))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
-                .hasMessage(
-                        "Transaction import job execution 81 finished with status FAILED: Database unavailable"
-                );
+                .hasMessage(expectedSummary);
 
         verify(jobFinalizationService).fail(
                 event,
-                "Transaction import job execution 81 finished with status FAILED: Database unavailable"
+                jobExecution,
+                expectedSummary
         );
     }
 
@@ -218,7 +223,11 @@ class TransactionImportRequestedEventProcessorTest {
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage(expectedSummary);
 
-        verify(jobFinalizationService).fail(event, expectedSummary);
+        verify(jobFinalizationService).fail(
+                event,
+                jobExecution,
+                expectedSummary
+        );
     }
 
     @ParameterizedTest
