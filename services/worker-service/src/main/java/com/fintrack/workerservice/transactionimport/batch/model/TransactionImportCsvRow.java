@@ -13,4 +13,5 @@ public class TransactionImportCsvRow {
     private final String amount;
     private final String merchant;
     private final String description;
+    private final String rawRecord;
 }

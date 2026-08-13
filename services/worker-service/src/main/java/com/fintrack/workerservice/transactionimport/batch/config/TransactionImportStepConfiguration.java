@@ -1,5 +1,6 @@
 package com.fintrack.workerservice.transactionimport.batch.config;
 
+import com.fintrack.workerservice.transactionimport.batch.listener.TransactionImportSkipListener;
 import com.fintrack.workerservice.transactionimport.batch.model.TransactionImportCsvRow;
 import com.fintrack.workerservice.transactionimport.batch.model.ValidatedTransactionImportRow;
 import com.fintrack.workerservice.transactionimport.batch.processor.TransactionImportItemProcessor;
@@ -9,6 +10,7 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
+import org.springframework.batch.infrastructure.item.file.FlatFileParseException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -25,7 +27,9 @@ public class TransactionImportStepConfiguration {
             PlatformTransactionManager transactionManager,
             FlatFileItemReader<TransactionImportCsvRow> transactionImportCsvReader,
             TransactionImportItemProcessor transactionImportItemProcessor,
-            TransactionImportItemWriter transactionImportItemWriter) {
+            TransactionImportItemWriter transactionImportItemWriter,
+            TransactionImportSkipListener transactionImportSkipListener) {
+
         return new StepBuilder("transactionImportStep", jobRepository)
                 .<TransactionImportCsvRow, ValidatedTransactionImportRow>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
@@ -34,7 +38,9 @@ public class TransactionImportStepConfiguration {
                 .writer(transactionImportItemWriter)
                 .faultTolerant()
                 .skip(TransactionImportRowValidationException.class)
+                .skip(FlatFileParseException.class)
                 .skipLimit(SKIP_LIMIT)
+                .listener(transactionImportSkipListener)
                 .build();
     }
 }

@@ -1,6 +1,7 @@
 package com.fintrack.workerservice.transactionimport.batch.config;
 
 import com.fintrack.workerservice.transaction.entity.TransactionType;
+import com.fintrack.workerservice.transactionimport.batch.listener.TransactionImportSkipListener;
 import com.fintrack.workerservice.transactionimport.batch.model.TransactionImportCsvRow;
 import com.fintrack.workerservice.transactionimport.batch.model.ValidatedTransactionImportRow;
 import com.fintrack.workerservice.transactionimport.batch.processor.TransactionImportItemProcessor;
@@ -21,6 +22,7 @@ import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.infrastructure.item.Chunk;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
+import org.springframework.batch.infrastructure.item.file.FlatFileParseException;
 import org.springframework.batch.infrastructure.support.transaction.ResourcelessTransactionManager;
 
 import java.math.BigDecimal;
@@ -45,6 +47,9 @@ class TransactionImportStepConfigurationTest {
     @Mock
     private TransactionImportItemWriter transactionImportItemWriter;
 
+    @Mock
+    private TransactionImportSkipListener transactionImportSkipListener;
+
     private Step transactionImportStep;
 
     @BeforeEach
@@ -57,13 +62,14 @@ class TransactionImportStepConfigurationTest {
                 new ResourcelessTransactionManager(),
                 transactionImportCsvReader,
                 transactionImportItemProcessor,
-                transactionImportItemWriter
+                transactionImportItemWriter,
+                transactionImportSkipListener
         );
     }
 
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
-    void stepSkipsInvalidRowAndWritesValidRows() throws Exception {
+    void stepSkipsInvalidRowStagesRejectionAndWritesValidRows() throws Exception {
         TransactionImportCsvRow firstRow = csvRow(2);
         TransactionImportCsvRow invalidRow = csvRow(3);
         TransactionImportCsvRow thirdRow = csvRow(4);
@@ -71,12 +77,20 @@ class TransactionImportStepConfigurationTest {
         ValidatedTransactionImportRow firstValidatedRow = validatedRow(2);
         ValidatedTransactionImportRow thirdValidatedRow = validatedRow(4);
 
+        TransactionImportRowValidationException validationException =
+                new TransactionImportRowValidationException(
+                        3,
+                        "amount must be valid"
+                );
+
         when(transactionImportCsvReader.read())
                 .thenReturn(firstRow, invalidRow, thirdRow, null);
-        when(transactionImportItemProcessor.process(firstRow)).thenReturn(firstValidatedRow);
+        when(transactionImportItemProcessor.process(firstRow))
+                .thenReturn(firstValidatedRow);
         when(transactionImportItemProcessor.process(invalidRow))
-                .thenThrow(new TransactionImportRowValidationException(3, "amount must be valid"));
-        when(transactionImportItemProcessor.process(thirdRow)).thenReturn(thirdValidatedRow);
+                .thenThrow(validationException);
+        when(transactionImportItemProcessor.process(thirdRow))
+                .thenReturn(thirdValidatedRow);
 
         StepExecution stepExecution = stepExecution();
 
@@ -91,9 +105,50 @@ class TransactionImportStepConfigurationTest {
         ArgumentCaptor<Chunk> chunkCaptor = ArgumentCaptor.forClass(Chunk.class);
 
         verify(transactionImportItemWriter).write(chunkCaptor.capture());
+        verify(transactionImportSkipListener)
+                .onSkipInProcess(invalidRow, validationException);
 
         assertThat(chunkCaptor.getValue().getItems())
                 .containsExactly(firstValidatedRow, thirdValidatedRow);
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void stepSkipsMalformedCsvRecordAndWritesValidRow() throws Exception {
+        String malformedRecord = "2026-08-10,EXPENSE,12.50,STARBUCKS";
+
+        FlatFileParseException parseException = new FlatFileParseException(
+                "Failed to parse CSV record",
+                malformedRecord,
+                2
+        );
+
+        TransactionImportCsvRow validRow = csvRow(3);
+        ValidatedTransactionImportRow validatedRow = validatedRow(3);
+
+        when(transactionImportCsvReader.read())
+                .thenThrow(parseException)
+                .thenReturn(validRow, null);
+        when(transactionImportItemProcessor.process(validRow))
+                .thenReturn(validatedRow);
+
+        StepExecution stepExecution = stepExecution();
+
+        transactionImportStep.execute(stepExecution);
+
+        assertThat(stepExecution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(stepExecution.getReadCount()).isEqualTo(1);
+        assertThat(stepExecution.getReadSkipCount()).isEqualTo(1);
+        assertThat(stepExecution.getWriteCount()).isEqualTo(1);
+        assertThat(stepExecution.getSkipCount()).isEqualTo(1);
+
+        ArgumentCaptor<Chunk> chunkCaptor = ArgumentCaptor.forClass(Chunk.class);
+
+        verify(transactionImportItemWriter).write(chunkCaptor.capture());
+        verify(transactionImportSkipListener).onSkipInRead(parseException);
+
+        assertThat(chunkCaptor.getValue().getItems())
+                .containsExactly(validatedRow);
     }
 
     @Test
@@ -151,6 +206,11 @@ class TransactionImportStepConfigurationTest {
 
         verify(transactionImportItemWriter, never())
                 .write(argThat(chunk -> !chunk.isEmpty()));
+        verify(transactionImportSkipListener, never())
+                .onSkipInProcess(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()
+                );
     }
 
     private StepExecution stepExecution() {
@@ -166,13 +226,17 @@ class TransactionImportStepConfigurationTest {
     }
 
     private TransactionImportCsvRow csvRow(int rowNumber) {
+        String rawRecord =
+                "2026-08-10,EXPENSE,12.50,STARBUCKS,Coffee";
+
         return new TransactionImportCsvRow(
                 rowNumber,
                 "2026-08-10",
                 "EXPENSE",
                 "12.50",
                 "STARBUCKS",
-                "Coffee"
+                "Coffee",
+                rawRecord
         );
     }
 

@@ -13,10 +13,9 @@ class TransactionImportCsvLineMapperTest {
 
     @Test
     void mapLineMapsEveryCsvColumnAndPhysicalRowNumber() {
-        TransactionImportCsvRow result = lineMapper.mapLine(
-                "2026-08-01,EXPENSE,42.75,Publix,Weekly groceries",
-                7
-        );
+        String rawRecord = "2026-08-01,EXPENSE,42.75,Publix,Weekly groceries";
+
+        TransactionImportCsvRow result = lineMapper.mapLine(rawRecord, 7);
 
         assertThat(result.getRowNumber()).isEqualTo(7);
         assertThat(result.getTransactionDate()).isEqualTo("2026-08-01");
@@ -24,28 +23,30 @@ class TransactionImportCsvLineMapperTest {
         assertThat(result.getAmount()).isEqualTo("42.75");
         assertThat(result.getMerchant()).isEqualTo("Publix");
         assertThat(result.getDescription()).isEqualTo("Weekly groceries");
+        assertThat(result.getRawRecord()).isEqualTo(rawRecord);
     }
 
     @Test
     void mapLineSupportsQuotedFieldsContainingCommas() {
-        TransactionImportCsvRow result = lineMapper.mapLine(
-                "2026-08-01,EXPENSE,42.75,Publix,\"Groceries, cleaning products, and milk\"",
-                2
-        );
+        String rawRecord =
+                "2026-08-01,EXPENSE,42.75,Publix,\"Groceries, cleaning products, and milk\"";
+
+        TransactionImportCsvRow result = lineMapper.mapLine(rawRecord, 2);
 
         assertThat(result.getMerchant()).isEqualTo("Publix");
         assertThat(result.getDescription()).isEqualTo("Groceries, cleaning products, and milk");
+        assertThat(result.getRawRecord()).isEqualTo(rawRecord);
     }
 
     @Test
     void mapLinePreservesEmptyOptionalFields() {
-        TransactionImportCsvRow result = lineMapper.mapLine(
-                "2026-08-01,EXPENSE,42.75,,",
-                2
-        );
+        String rawRecord = "2026-08-01,EXPENSE,42.75,,";
+
+        TransactionImportCsvRow result = lineMapper.mapLine(rawRecord, 2);
 
         assertThat(result.getMerchant()).isEmpty();
         assertThat(result.getDescription()).isEmpty();
+        assertThat(result.getRawRecord()).isEqualTo(rawRecord);
     }
 
     @Test

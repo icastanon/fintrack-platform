@@ -21,11 +21,14 @@ public class TransactionImportCsvLineMapper implements LineMapper<TransactionImp
     public TransactionImportCsvRow mapLine(String line, int lineNumber) {
         FieldSet fieldSet = lineTokenizer.tokenize(line);
 
-        return new TransactionImportCsvRow(lineNumber,
+        return new TransactionImportCsvRow(
+                lineNumber,
                 fieldSet.readRawString("transaction_date"),
                 fieldSet.readRawString("transaction_type"),
                 fieldSet.readRawString("amount"),
                 fieldSet.readRawString("merchant"),
-                fieldSet.readRawString("description"));
+                fieldSet.readRawString("description"),
+                line
+        );
     }
 }

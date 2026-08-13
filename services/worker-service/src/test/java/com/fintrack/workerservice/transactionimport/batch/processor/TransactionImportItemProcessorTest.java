@@ -199,11 +199,14 @@ class TransactionImportItemProcessorTest {
 
     private TransactionImportCsvRow row(String transactionDate, String transactionType,
                                         String amount, String merchant, String description) {
-        return new TransactionImportCsvRow(ROW_NUMBER,
+        return new TransactionImportCsvRow(
+                ROW_NUMBER,
                 transactionDate,
                 transactionType,
                 amount,
                 merchant,
-                description);
+                description,
+                "raw-record"
+        );
     }
 }
