@@ -29,9 +29,10 @@ public class TransactionImportService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void markCompleted(Long importId, Long accountId, Long userId,
-                              long successfulRows, long skippedRows, long failedRows) {
+                              long successfulRows, long skippedRows, long failedRows,
+                              String rejectedObjectKey) {
         TransactionImport transactionImport = findRequestedImport(importId, accountId, userId);
-        transactionImport.markCompleted(successfulRows, skippedRows, failedRows);
+        transactionImport.markCompleted(successfulRows, skippedRows, failedRows, rejectedObjectKey);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

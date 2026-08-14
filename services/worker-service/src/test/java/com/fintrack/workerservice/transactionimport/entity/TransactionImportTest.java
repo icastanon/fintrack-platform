@@ -10,6 +10,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TransactionImportTest {
 
+    private static final String REJECTED_OBJECT_KEY =
+            "imports/9/import-uuid/rejected.csv";
+
     @Test
     void markRunningTransitionsQueuedImportAndSetsInitialStartTime() {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.QUEUED);
@@ -75,22 +78,35 @@ class TransactionImportTest {
     }
 
     @Test
-    void markCompletedStoresFinalCountersAndCompletionTime() {
+    void markCompletedStoresFinalCountersRejectedObjectAndCompletionTime() {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
         Instant before = Instant.now();
 
-        transactionImport.markCompleted(8, 2, 1);
+        transactionImport.markCompleted(8, 2, 0, REJECTED_OBJECT_KEY);
 
         Instant after = Instant.now();
 
         assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.COMPLETED);
-        assertThat(transactionImport.getTotalRows()).isEqualTo(11);
-        assertThat(transactionImport.getProcessedRows()).isEqualTo(11);
+        assertThat(transactionImport.getTotalRows()).isEqualTo(10);
+        assertThat(transactionImport.getProcessedRows()).isEqualTo(10);
         assertThat(transactionImport.getSuccessfulRows()).isEqualTo(8);
         assertThat(transactionImport.getSkippedRows()).isEqualTo(2);
-        assertThat(transactionImport.getFailedRows()).isEqualTo(1);
+        assertThat(transactionImport.getFailedRows()).isZero();
+        assertThat(transactionImport.getRejectedObjectKey()).isEqualTo(REJECTED_OBJECT_KEY);
         assertThat(transactionImport.getFailureSummary()).isNull();
         assertThat(transactionImport.getCompletedAt()).isBetween(before, after);
+    }
+
+    @Test
+    void markCompletedWithoutSkippedRowsStoresNullRejectedObjectKey() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
+
+        transactionImport.markCompleted(8, 0, 0, null);
+
+        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.COMPLETED);
+        assertThat(transactionImport.getSuccessfulRows()).isEqualTo(8);
+        assertThat(transactionImport.getSkippedRows()).isZero();
+        assertThat(transactionImport.getRejectedObjectKey()).isNull();
     }
 
     @Test
@@ -103,15 +119,17 @@ class TransactionImportTest {
         ReflectionTestUtils.setField(transactionImport, "successfulRows", 5L);
         ReflectionTestUtils.setField(transactionImport, "skippedRows", 0L);
         ReflectionTestUtils.setField(transactionImport, "failedRows", 0L);
+        ReflectionTestUtils.setField(transactionImport, "rejectedObjectKey", null);
         ReflectionTestUtils.setField(transactionImport, "completedAt", originalCompletedAt);
 
-        transactionImport.markCompleted(10, 2, 1);
+        transactionImport.markCompleted(10, 2, 0, REJECTED_OBJECT_KEY);
 
         assertThat(transactionImport.getTotalRows()).isEqualTo(5);
         assertThat(transactionImport.getProcessedRows()).isEqualTo(5);
         assertThat(transactionImport.getSuccessfulRows()).isEqualTo(5);
         assertThat(transactionImport.getSkippedRows()).isZero();
         assertThat(transactionImport.getFailedRows()).isZero();
+        assertThat(transactionImport.getRejectedObjectKey()).isNull();
         assertThat(transactionImport.getCompletedAt()).isEqualTo(originalCompletedAt);
     }
 
@@ -119,9 +137,38 @@ class TransactionImportTest {
     void markCompletedRejectsImportThatIsNotRunningOrCompleted() {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.QUEUED);
 
-        assertThatThrownBy(() -> transactionImport.markCompleted(1, 0, 0))
+        assertThatThrownBy(() -> transactionImport.markCompleted(1, 0, 0, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Only a running transaction import can be completed");
+    }
+
+    @Test
+    void markCompletedRequiresRejectedObjectKeyWhenSkippedRowsExist() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
+
+        assertThatThrownBy(() -> transactionImport.markCompleted(8, 2, 0, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A rejected output object key is required when skipped rows exist");
+    }
+
+    @Test
+    void markCompletedRejectsBlankObjectKeyWhenSkippedRowsExist() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
+
+        assertThatThrownBy(() -> transactionImport.markCompleted(8, 2, 0, " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A rejected output object key is required when skipped rows exist");
+    }
+
+    @Test
+    void markCompletedRejectsObjectKeyWithoutSkippedRows() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
+
+        assertThatThrownBy(() ->
+                transactionImport.markCompleted(8, 0, 0, REJECTED_OBJECT_KEY)
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A rejected output object key cannot exist without skipped rows");
     }
 
     @Test
@@ -139,6 +186,7 @@ class TransactionImportTest {
         assertThat(transactionImport.getSuccessfulRows()).isEqualTo(4);
         assertThat(transactionImport.getSkippedRows()).isEqualTo(1);
         assertThat(transactionImport.getFailedRows()).isZero();
+        assertThat(transactionImport.getRejectedObjectKey()).isNull();
         assertThat(transactionImport.getFailureSummary()).isEqualTo("Temporary database failure");
         assertThat(transactionImport.getCompletedAt()).isBetween(before, after);
     }
@@ -165,7 +213,7 @@ class TransactionImportTest {
     void terminalTransitionsRejectNegativeCounters() {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
 
-        assertThatThrownBy(() -> transactionImport.markCompleted(-1, 0, 0))
+        assertThatThrownBy(() -> transactionImport.markCompleted(-1, 0, 0, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Transaction import row counts cannot be negative");
     }

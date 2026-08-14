@@ -1,8 +1,10 @@
 package com.fintrack.workerservice.transactionimport.service;
 
 import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
+import com.fintrack.workerservice.transactionimport.batch.model.TransactionImportRejectedOutput;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportJobFinalizationService;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportJobLaunchService;
+import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedOutputPreparationService;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportJobProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,11 +23,14 @@ public class TransactionImportRequestedEventProcessor {
     private static final Logger LOGGER = LoggerFactory.getLogger(TransactionImportRequestedEventProcessor.class);
 
     private final TransactionImportJobLaunchService jobLaunchService;
+    private final TransactionImportRejectedOutputPreparationService rejectedOutputPreparationService;
     private final TransactionImportJobFinalizationService jobFinalizationService;
 
     public TransactionImportRequestedEventProcessor(TransactionImportJobLaunchService jobLaunchService,
+                                                    TransactionImportRejectedOutputPreparationService rejectedOutputPreparationService,
                                                     TransactionImportJobFinalizationService jobFinalizationService) {
         this.jobLaunchService = jobLaunchService;
+        this.rejectedOutputPreparationService = rejectedOutputPreparationService;
         this.jobFinalizationService = jobFinalizationService;
     }
 
@@ -78,13 +83,18 @@ public class TransactionImportRequestedEventProcessor {
     }
 
     private boolean complete(TransactionImportRequestedEvent event, JobExecution jobExecution) {
-        boolean firstCompletion = jobFinalizationService.complete(event, jobExecution);
+        TransactionImportRejectedOutput rejectedOutput = rejectedOutputPreparationService.prepareAndUpload(event.getImportId(), event.getSourceObjectKey());
+
+        boolean firstCompletion = jobFinalizationService.complete(event, jobExecution, rejectedOutput);
 
         LOGGER.info(
-                "Finalized completed transaction import: eventId={}, importId={}, jobExecutionId={}, firstCompletion={}",
+                "Finalized completed transaction import: eventId={}, importId={}, jobExecutionId={}, "
+                        + "rejectedRows={}, rejectedObjectKey={}, firstCompletion={}",
                 event.getEventId(),
                 event.getImportId(),
                 jobExecution.getId(),
+                rejectedOutput.getRejectedRowCount(),
+                rejectedOutput.getObjectKey(),
                 firstCompletion
         );
 

@@ -101,7 +101,7 @@ public class TransactionImport {
         }
     }
 
-    public void markCompleted(long successfulRows, long skippedRows, long failedRows) {
+    public void markCompleted(long successfulRows, long skippedRows, long failedRows, String rejectedObjectKey) {
         validateRowCounts(successfulRows, skippedRows, failedRows);
 
         if (status == TransactionImportStatus.COMPLETED) {
@@ -112,6 +112,18 @@ public class TransactionImport {
             throw new IllegalStateException("Only a running transaction import can be completed");
         }
 
+        if (skippedRows > 0 && (rejectedObjectKey == null || rejectedObjectKey.isBlank())) {
+            throw new IllegalArgumentException(
+                    "A rejected output object key is required when skipped rows exist"
+            );
+        }
+
+        if (skippedRows == 0 && rejectedObjectKey != null) {
+            throw new IllegalArgumentException(
+                    "A rejected output object key cannot exist without skipped rows"
+            );
+        }
+
         long finalProcessedRows = successfulRows + skippedRows + failedRows;
 
         status = TransactionImportStatus.COMPLETED;
@@ -120,6 +132,7 @@ public class TransactionImport {
         this.successfulRows = successfulRows;
         this.skippedRows = skippedRows;
         this.failedRows = failedRows;
+        this.rejectedObjectKey = rejectedObjectKey;
         failureSummary = null;
         completedAt = Instant.now();
     }

@@ -23,6 +23,8 @@ class TransactionImportServiceTest {
     private static final Long IMPORT_ID = 41L;
     private static final Long ACCOUNT_ID = 22L;
     private static final Long USER_ID = 9L;
+    private static final String REJECTED_OBJECT_KEY =
+            "imports/9/import-uuid/rejected.csv";
 
     @Mock
     private TransactionImportRepository transactionImportRepository;
@@ -37,11 +39,8 @@ class TransactionImportServiceTest {
     void getRequestedImportReturnsMatchingImport() {
         matchingImportExists();
 
-        TransactionImport result = transactionImportService.getRequestedImport(
-                IMPORT_ID,
-                ACCOUNT_ID,
-                USER_ID
-        );
+        TransactionImport result =
+                transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID);
 
         assertThat(result).isSameAs(transactionImport);
 
@@ -88,7 +87,7 @@ class TransactionImportServiceTest {
     }
 
     @Test
-    void markCompletedLoadsOwnedImportAndStoresFinalCounters() {
+    void markCompletedLoadsOwnedImportAndStoresFinalState() {
         matchingImportExists();
 
         transactionImportService.markCompleted(
@@ -97,12 +96,30 @@ class TransactionImportServiceTest {
                 USER_ID,
                 8,
                 2,
-                1
+                0,
+                REJECTED_OBJECT_KEY
         );
 
         verify(transactionImportRepository)
                 .findByIdAndAccountIdAndUserId(IMPORT_ID, ACCOUNT_ID, USER_ID);
-        verify(transactionImport).markCompleted(8, 2, 1);
+        verify(transactionImport).markCompleted(8, 2, 0, REJECTED_OBJECT_KEY);
+    }
+
+    @Test
+    void markCompletedWithoutRejectedRowsStoresNullObjectKey() {
+        matchingImportExists();
+
+        transactionImportService.markCompleted(
+                IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                8,
+                0,
+                0,
+                null
+        );
+
+        verify(transactionImport).markCompleted(8, 0, 0, null);
     }
 
     @Test
@@ -135,7 +152,8 @@ class TransactionImportServiceTest {
                         USER_ID,
                         8,
                         0,
-                        0
+                        0,
+                        null
                 )
         )
                 .isInstanceOf(TransactionImportNotFoundException.class)

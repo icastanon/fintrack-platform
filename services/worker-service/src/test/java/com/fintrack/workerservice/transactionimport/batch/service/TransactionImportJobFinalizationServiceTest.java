@@ -3,6 +3,7 @@ package com.fintrack.workerservice.transactionimport.batch.service;
 import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.idempotency.service.ProcessedMessageService;
 import com.fintrack.workerservice.transaction.repository.FinancialTransactionRepository;
+import com.fintrack.workerservice.transactionimport.batch.model.TransactionImportRejectedOutput;
 import com.fintrack.workerservice.transactionimport.service.TransactionImportService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +37,8 @@ class TransactionImportJobFinalizationServiceTest {
 
     private static final String CONSUMER_NAME = "transaction-import-request-processor";
     private static final String EVENT_TYPE = "TRANSACTION_IMPORT_REQUESTED";
+    private static final String REJECTED_OBJECT_KEY =
+            "imports/9/import-uuid/rejected.csv";
 
     @Mock
     private ProcessedMessageService processedMessageService;
@@ -61,6 +64,8 @@ class TransactionImportJobFinalizationServiceTest {
     @Test
     void completeRecordsMessageCountsDurableRowsAndCompletesImport() {
         TransactionImportRequestedEvent event = event();
+        TransactionImportRejectedOutput rejectedOutput =
+                TransactionImportRejectedOutput.uploaded(3, REJECTED_OBJECT_KEY);
 
         when(processedMessageService.recordIfFirst(
                 EVENT_ID,
@@ -75,7 +80,8 @@ class TransactionImportJobFinalizationServiceTest {
         when(firstStepExecution.getSkipCount()).thenReturn(2L);
         when(secondStepExecution.getSkipCount()).thenReturn(1L);
 
-        boolean completed = finalizationService.complete(event, jobExecution);
+        boolean completed =
+                finalizationService.complete(event, jobExecution, rejectedOutput);
 
         assertThat(completed).isTrue();
 
@@ -98,13 +104,78 @@ class TransactionImportJobFinalizationServiceTest {
                 USER_ID,
                 7,
                 3,
-                0
+                0,
+                REJECTED_OBJECT_KEY
         );
+    }
+
+    @Test
+    void completeWithoutSkippedRowsStoresNoRejectedObjectKey() {
+        TransactionImportRequestedEvent event = event();
+        TransactionImportRejectedOutput rejectedOutput =
+                TransactionImportRejectedOutput.none();
+
+        when(processedMessageService.recordIfFirst(
+                EVENT_ID,
+                CONSUMER_NAME,
+                EVENT_TYPE,
+                TransactionImportRequestedEvent.CURRENT_VERSION
+        )).thenReturn(true);
+
+        when(financialTransactionRepository.countByImportId(IMPORT_ID)).thenReturn(7L);
+        when(jobExecution.getStepExecutions()).thenReturn(Set.of(firstStepExecution));
+        when(firstStepExecution.getSkipCount()).thenReturn(0L);
+
+        boolean completed =
+                finalizationService.complete(event, jobExecution, rejectedOutput);
+
+        assertThat(completed).isTrue();
+
+        verify(transactionImportService).markCompleted(
+                IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                7,
+                0,
+                0,
+                null
+        );
+    }
+
+    @Test
+    void completeRejectsMismatchBetweenBatchAndDurableRejectedCounts() {
+        TransactionImportRequestedEvent event = event();
+        TransactionImportRejectedOutput rejectedOutput =
+                TransactionImportRejectedOutput.uploaded(2, REJECTED_OBJECT_KEY);
+
+        when(processedMessageService.recordIfFirst(
+                EVENT_ID,
+                CONSUMER_NAME,
+                EVENT_TYPE,
+                TransactionImportRequestedEvent.CURRENT_VERSION
+        )).thenReturn(true);
+
+        when(financialTransactionRepository.countByImportId(IMPORT_ID)).thenReturn(7L);
+        when(jobExecution.getStepExecutions()).thenReturn(Set.of(firstStepExecution));
+        when(firstStepExecution.getSkipCount()).thenReturn(3L);
+
+        assertThatThrownBy(() ->
+                finalizationService.complete(event, jobExecution, rejectedOutput)
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(
+                        "Spring Batch skip count does not match durable rejected-row count "
+                                + "for import 41: batchSkippedRows=3, rejectedRows=2"
+                );
+
+        verifyNoInteractions(transactionImportService);
     }
 
     @Test
     void completeSkipsDuplicateCompletedMessage() {
         TransactionImportRequestedEvent event = event();
+        TransactionImportRejectedOutput rejectedOutput =
+                TransactionImportRejectedOutput.none();
 
         when(processedMessageService.recordIfFirst(
                 EVENT_ID,
@@ -113,7 +184,8 @@ class TransactionImportJobFinalizationServiceTest {
                 TransactionImportRequestedEvent.CURRENT_VERSION
         )).thenReturn(false);
 
-        boolean completed = finalizationService.complete(event, jobExecution);
+        boolean completed =
+                finalizationService.complete(event, jobExecution, rejectedOutput);
 
         assertThat(completed).isFalse();
 
@@ -123,10 +195,7 @@ class TransactionImportJobFinalizationServiceTest {
                 EVENT_TYPE,
                 TransactionImportRequestedEvent.CURRENT_VERSION
         );
-        verifyNoInteractions(
-                financialTransactionRepository,
-                transactionImportService
-        );
+        verifyNoInteractions(financialTransactionRepository, transactionImportService);
     }
 
     @Test
@@ -137,16 +206,10 @@ class TransactionImportJobFinalizationServiceTest {
         when(jobExecution.getStepExecutions()).thenReturn(Set.of(firstStepExecution));
         when(firstStepExecution.getSkipCount()).thenReturn(2L);
 
-        finalizationService.fail(
-                event,
-                jobExecution,
-                "Database connection failed"
-        );
+        finalizationService.fail(event, jobExecution, "Database connection failed");
 
-        InOrder order = inOrder(
-                financialTransactionRepository,
-                transactionImportService
-        );
+        InOrder order =
+                inOrder(financialTransactionRepository, transactionImportService);
 
         order.verify(financialTransactionRepository).countByImportId(IMPORT_ID);
         order.verify(transactionImportService).markFailed(
@@ -164,7 +227,13 @@ class TransactionImportJobFinalizationServiceTest {
 
     @Test
     void completeRejectsNullEventBeforeUsingDependencies() {
-        assertThatThrownBy(() -> finalizationService.complete(null, jobExecution))
+        assertThatThrownBy(() ->
+                finalizationService.complete(
+                        null,
+                        jobExecution,
+                        TransactionImportRejectedOutput.none()
+                )
+        )
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
 
@@ -177,7 +246,13 @@ class TransactionImportJobFinalizationServiceTest {
 
     @Test
     void completeRejectsNullJobExecutionBeforeUsingDependencies() {
-        assertThatThrownBy(() -> finalizationService.complete(event(), null))
+        assertThatThrownBy(() ->
+                finalizationService.complete(
+                        event(),
+                        null,
+                        TransactionImportRejectedOutput.none()
+                )
+        )
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Job execution is required");
 
@@ -189,13 +264,25 @@ class TransactionImportJobFinalizationServiceTest {
     }
 
     @Test
+    void completeRejectsNullRejectedOutputBeforeUsingDependencies() {
+        assertThatThrownBy(() ->
+                finalizationService.complete(event(), jobExecution, null)
+        )
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Rejected output is required");
+
+        verifyNoInteractions(
+                processedMessageService,
+                financialTransactionRepository,
+                transactionImportService
+        );
+    }
+
+    @Test
     void failRejectsNullEventBeforeUsingDependencies() {
         assertThatThrownBy(() ->
-                finalizationService.fail(
-                        null,
-                        jobExecution,
-                        "Failure"
-                ))
+                finalizationService.fail(null, jobExecution, "Failure")
+        )
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
 
@@ -209,11 +296,8 @@ class TransactionImportJobFinalizationServiceTest {
     @Test
     void failRejectsNullJobExecutionBeforeUsingDependencies() {
         assertThatThrownBy(() ->
-                finalizationService.fail(
-                        event(),
-                        null,
-                        "Failure"
-                ))
+                finalizationService.fail(event(), null, "Failure")
+        )
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Job execution is required");
 
