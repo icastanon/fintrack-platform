@@ -42,6 +42,8 @@ public class TransactionImportRequestedEventProcessor {
         Objects.requireNonNull(event, "Transaction import requested event is required");
 
         try {
+            jobLaunchService.recoverLastExecutionIfRunning(event);
+
             JobExecution jobExecution = jobLaunchService.launch(event);
             return handleExecutionResult(event, jobExecution);
         } catch (JobInstanceAlreadyCompleteException exception) {

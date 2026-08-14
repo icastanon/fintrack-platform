@@ -4,6 +4,9 @@ import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.transactionimport.entity.TransactionImport;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportRequestMismatchException;
 import com.fintrack.workerservice.transactionimport.service.TransactionImportService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.JobExecutionException;
@@ -19,6 +22,8 @@ import java.util.Optional;
 
 @Service
 public class TransactionImportJobLaunchService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TransactionImportJobLaunchService.class);
 
     private final JobOperator jobOperator;
     private final Job transactionImportJob;
@@ -40,10 +45,35 @@ public class TransactionImportJobLaunchService {
         return jobOperator.start(transactionImportJob, jobParameters);
     }
 
+    public boolean recoverLastExecutionIfRunning(TransactionImportRequestedEvent event) {
+        Optional<JobExecution> optionalExecution = findLastExecution(event);
+
+        if (optionalExecution.isEmpty()) {
+            return false;
+        }
+
+        JobExecution jobExecution = optionalExecution.get();
+
+        if (!jobExecution.isRunning()) {
+            return false;
+        }
+
+        BatchStatus previousStatus = jobExecution.getStatus();
+        jobOperator.recover(jobExecution);
+
+        LOGGER.warn(
+                "Recovered stale transaction-import job execution: importId={}, jobExecutionId={}, previousStatus={}",
+                event.getImportId(),
+                jobExecution.getId(),
+                previousStatus
+        );
+
+        return true;
+    }
+
     public Optional<JobExecution> findLastExecution(TransactionImportRequestedEvent event) {
         JobParameters jobParameters = buildVerifiedJobParameters(event);
-        JobExecution jobExecution =
-                jobRepository.getLastJobExecution(transactionImportJob.getName(), jobParameters);
+        JobExecution jobExecution = jobRepository.getLastJobExecution(transactionImportJob.getName(), jobParameters);
 
         return Optional.ofNullable(jobExecution);
     }

@@ -16,6 +16,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.Objects;
 
 @Entity
 @Table(name = "transaction_import")
@@ -24,6 +25,7 @@ import java.time.Instant;
 public class TransactionImport {
 
     private static final int MAXIMUM_FAILURE_SUMMARY_LENGTH = 1000;
+    private static final int MAXIMUM_PROCESSING_OWNER_LENGTH = 100;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -69,6 +71,15 @@ public class TransactionImport {
     @Column(name = "failure_summary", length = 1000)
     private String failureSummary;
 
+    @Column(name = "processing_owner", length = 100)
+    private String processingOwner;
+
+    @Column(name = "processing_lease_expires_at")
+    private Instant processingLeaseExpiresAt;
+
+    @Column(name = "processing_fencing_token", nullable = false)
+    private long processingFencingToken;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -88,20 +99,43 @@ public class TransactionImport {
     private Instant updatedAt;
 
     public void markRunning() {
-        if (status == TransactionImportStatus.COMPLETED) {
-            throw new IllegalStateException("A completed transaction import cannot be restarted");
-        }
-
-        status = TransactionImportStatus.RUNNING;
-        completedAt = null;
-        failureSummary = null;
-
-        if (startedAt == null) {
-            startedAt = Instant.now();
-        }
+        markRunning(Instant.now());
     }
 
-    public void markCompleted(long successfulRows, long skippedRows, long failedRows, String rejectedObjectKey) {
+    public boolean hasActiveProcessingLease(Instant now) {
+        Objects.requireNonNull(now, "Current time is required");
+
+        return processingOwner != null
+                && processingLeaseExpiresAt != null
+                && processingLeaseExpiresAt.isAfter(now);
+    }
+
+    public long claimProcessingLease(String processingOwner, Instant claimedAt,
+                                     Instant leaseExpiresAt) {
+        if (status == TransactionImportStatus.COMPLETED) {
+            throw new IllegalStateException("A completed transaction import cannot be claimed");
+        }
+
+        Objects.requireNonNull(claimedAt, "Processing lease claim time is required");
+        Objects.requireNonNull(leaseExpiresAt, "Processing lease expiration is required");
+
+        String normalizedOwner = normalizeProcessingOwner(processingOwner);
+
+        if (!leaseExpiresAt.isAfter(claimedAt)) {
+            throw new IllegalArgumentException("Processing lease expiration must be after the claim time");
+        }
+
+        this.processingOwner = normalizedOwner;
+        this.processingLeaseExpiresAt = leaseExpiresAt;
+        processingFencingToken = Math.incrementExact(processingFencingToken);
+
+        markRunning(claimedAt);
+
+        return processingFencingToken;
+    }
+
+    public void markCompleted(long successfulRows, long skippedRows, long failedRows,
+                              String rejectedObjectKey) {
         validateRowCounts(successfulRows, skippedRows, failedRows);
 
         if (status == TransactionImportStatus.COMPLETED) {
@@ -158,10 +192,40 @@ public class TransactionImport {
         completedAt = Instant.now();
     }
 
+    private void markRunning(Instant startedAt) {
+        if (status == TransactionImportStatus.COMPLETED) {
+            throw new IllegalStateException("A completed transaction import cannot be restarted");
+        }
+
+        status = TransactionImportStatus.RUNNING;
+        completedAt = null;
+        failureSummary = null;
+
+        if (this.startedAt == null) {
+            this.startedAt = startedAt;
+        }
+    }
+
     private void validateRowCounts(long successfulRows, long skippedRows, long failedRows) {
         if (successfulRows < 0 || skippedRows < 0 || failedRows < 0) {
             throw new IllegalArgumentException("Transaction import row counts cannot be negative");
         }
+    }
+
+    private String normalizeProcessingOwner(String processingOwner) {
+        if (processingOwner == null || processingOwner.isBlank()) {
+            throw new IllegalArgumentException("Processing owner is required");
+        }
+
+        String normalizedOwner = processingOwner.trim();
+
+        if (normalizedOwner.length() > MAXIMUM_PROCESSING_OWNER_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Processing owner cannot exceed " + MAXIMUM_PROCESSING_OWNER_LENGTH + " characters"
+            );
+        }
+
+        return normalizedOwner;
     }
 
     private String normalizeFailureSummary(String failureSummary) {

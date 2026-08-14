@@ -10,11 +10,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.parameters.InvalidJobParametersException;
 import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.batch.core.launch.JobExecutionAlreadyRunningException;
+import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.launch.JobOperator;
+import org.springframework.batch.core.launch.JobRestartException;
 import org.springframework.batch.core.repository.JobRepository;
 
 import java.time.Instant;
@@ -25,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -36,6 +41,7 @@ class TransactionImportJobLaunchServiceTest {
     private static final Long IMPORT_ID = 41L;
     private static final Long ACCOUNT_ID = 22L;
     private static final Long USER_ID = 9L;
+    private static final Long JOB_EXECUTION_ID = 71L;
     private static final String JOB_NAME = "transactionImportJob";
     private static final String SOURCE_OBJECT_KEY = "imports/9/import-uuid/source.csv";
 
@@ -66,8 +72,7 @@ class TransactionImportJobLaunchServiceTest {
 
         prepareAuthoritativeImport();
 
-        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class)))
-                .thenReturn(jobExecution);
+        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class))).thenReturn(jobExecution);
 
         JobExecution result = jobLaunchService.launch(event);
 
@@ -83,14 +88,57 @@ class TransactionImportJobLaunchServiceTest {
     }
 
     @Test
-    void findLastExecutionLoadsPersistedExecutionUsingAuthoritativeParameters() {
+    void recoverLastExecutionIfRunningRecoversStaleExecution() throws JobInstanceAlreadyCompleteException, InvalidJobParametersException, JobExecutionAlreadyRunningException, JobRestartException {
+        TransactionImportRequestedEvent event = event(SOURCE_OBJECT_KEY);
+
+        prepareLastExecution();
+        when(jobExecution.isRunning()).thenReturn(true);
+        when(jobExecution.getStatus()).thenReturn(BatchStatus.STARTED);
+        when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
+        when(jobOperator.recover(jobExecution)).thenReturn(jobExecution);
+
+        boolean recovered = jobLaunchService.recoverLastExecutionIfRunning(event);
+
+        assertThat(recovered).isTrue();
+
+        verify(jobOperator).recover(jobExecution);
+        verify(jobOperator, never()).start(eq(transactionImportJob), any(JobParameters.class));
+    }
+
+    @Test
+    void recoverLastExecutionIfRunningDoesNothingWhenNoExecutionExists() {
         TransactionImportRequestedEvent event = event(SOURCE_OBJECT_KEY);
 
         prepareAuthoritativeImport();
-
         when(transactionImportJob.getName()).thenReturn(JOB_NAME);
-        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class)))
-                .thenReturn(jobExecution);
+        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class))).thenReturn(null);
+
+        boolean recovered = jobLaunchService.recoverLastExecutionIfRunning(event);
+
+        assertThat(recovered).isFalse();
+
+        verifyNoInteractions(jobOperator);
+    }
+
+    @Test
+    void recoverLastExecutionIfRunningDoesNothingForTerminalExecution() {
+        TransactionImportRequestedEvent event = event(SOURCE_OBJECT_KEY);
+
+        prepareLastExecution();
+        when(jobExecution.isRunning()).thenReturn(false);
+
+        boolean recovered = jobLaunchService.recoverLastExecutionIfRunning(event);
+
+        assertThat(recovered).isFalse();
+
+        verify(jobOperator, never()).recover(any(JobExecution.class));
+    }
+
+    @Test
+    void findLastExecutionLoadsPersistedExecutionUsingAuthoritativeParameters() {
+        TransactionImportRequestedEvent event = event(SOURCE_OBJECT_KEY);
+
+        prepareLastExecution();
 
         Optional<JobExecution> result = jobLaunchService.findLastExecution(event);
 
@@ -110,10 +158,8 @@ class TransactionImportJobLaunchServiceTest {
         TransactionImportRequestedEvent event = event(SOURCE_OBJECT_KEY);
 
         prepareAuthoritativeImport();
-
         when(transactionImportJob.getName()).thenReturn(JOB_NAME);
-        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class)))
-                .thenReturn(null);
+        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class))).thenReturn(null);
 
         Optional<JobExecution> result = jobLaunchService.findLastExecution(event);
 
@@ -160,8 +206,7 @@ class TransactionImportJobLaunchServiceTest {
         JobExecutionAlreadyRunningException cause =
                 new JobExecutionAlreadyRunningException("Import job is already running");
 
-        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class)))
-                .thenThrow(cause);
+        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class))).thenThrow(cause);
 
         assertThatThrownBy(() -> jobLaunchService.launch(event)).isSameAs(cause);
 
@@ -174,11 +219,16 @@ class TransactionImportJobLaunchServiceTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
 
-        verifyNoInteractions(
-                transactionImportService,
-                jobOperator,
-                jobRepository
-        );
+        verifyNoInteractions(transactionImportService, jobOperator, jobRepository);
+    }
+
+    @Test
+    void recoverLastExecutionIfRunningRejectsNullEvent() {
+        assertThatThrownBy(() -> jobLaunchService.recoverLastExecutionIfRunning(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Transaction import requested event is required");
+
+        verifyNoInteractions(transactionImportService, jobOperator, jobRepository);
     }
 
     @Test
@@ -187,26 +237,26 @@ class TransactionImportJobLaunchServiceTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
 
-        verifyNoInteractions(
-                transactionImportService,
-                jobOperator,
-                jobRepository
-        );
+        verifyNoInteractions(transactionImportService, jobOperator, jobRepository);
     }
 
     private void prepareAuthoritativeImport() {
-        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID))
-                .thenReturn(transactionImport);
+        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID)).thenReturn(transactionImport);
         when(transactionImport.getId()).thenReturn(IMPORT_ID);
         when(transactionImport.getAccountId()).thenReturn(ACCOUNT_ID);
         when(transactionImport.getSourceObjectKey()).thenReturn(SOURCE_OBJECT_KEY);
     }
 
     private void prepareAuthoritativeImportForSourceMismatch() {
-        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID))
-                .thenReturn(transactionImport);
+        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID)).thenReturn(transactionImport);
         when(transactionImport.getId()).thenReturn(IMPORT_ID);
         when(transactionImport.getSourceObjectKey()).thenReturn(SOURCE_OBJECT_KEY);
+    }
+
+    private void prepareLastExecution() {
+        prepareAuthoritativeImport();
+        when(transactionImportJob.getName()).thenReturn(JOB_NAME);
+        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class))).thenReturn(jobExecution);
     }
 
     private void assertJobParameters(JobParameters parameters) {
@@ -219,9 +269,7 @@ class TransactionImportJobLaunchServiceTest {
         assertThat(parameters.getParameter("accountId").identifying()).isFalse();
         assertThat(parameters.getParameter("userId").identifying()).isFalse();
         assertThat(parameters.getParameter("sourceObjectKey").identifying()).isFalse();
-
-        assertThat(parameters.getIdentifyingParameters())
-                .containsExactly(parameters.getParameter("importId"));
+        assertThat(parameters.getIdentifyingParameters()).containsExactly(parameters.getParameter("importId"));
     }
 
     private TransactionImportRequestedEvent event(String sourceObjectKey) {

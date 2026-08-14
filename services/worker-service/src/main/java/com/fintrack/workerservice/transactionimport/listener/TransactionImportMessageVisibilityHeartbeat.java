@@ -1,5 +1,7 @@
 package com.fintrack.workerservice.transactionimport.listener;
 
+import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
+import com.fintrack.workerservice.transactionimport.service.TransactionImportProcessingLeaseManager;
 import io.awspring.cloud.sqs.listener.Visibility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,32 +15,35 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class TransactionImportMessageVisibilityHeartbeat {
 
-    private static final Logger LOGGER =
-            LoggerFactory.getLogger(TransactionImportMessageVisibilityHeartbeat.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(TransactionImportMessageVisibilityHeartbeat.class);
 
     private final TaskScheduler taskScheduler;
+    private final TransactionImportProcessingLeaseManager processingLeaseManager;
     private final int visibilityExtensionSeconds;
     private final Duration heartbeatInterval;
 
     public TransactionImportMessageVisibilityHeartbeat(
             @Qualifier("transactionImportVisibilityTaskScheduler") TaskScheduler taskScheduler,
+            TransactionImportProcessingLeaseManager processingLeaseManager,
             @Value("${fintrack.sqs.import-jobs-visibility-extension-seconds}") int visibilityExtensionSeconds,
             @Value("${fintrack.sqs.import-jobs-visibility-heartbeat-seconds}") int heartbeatIntervalSeconds) {
         if (visibilityExtensionSeconds <= 0) {
             throw new IllegalArgumentException("Visibility extension must be positive");
         }
 
-        if (heartbeatIntervalSeconds <= 0 ||
-                heartbeatIntervalSeconds >= visibilityExtensionSeconds) {
+        if (heartbeatIntervalSeconds <= 0 || heartbeatIntervalSeconds >= visibilityExtensionSeconds) {
             throw new IllegalArgumentException(
-                    "Visibility heartbeat must be positive and shorter than the visibility extension");
+                    "Visibility heartbeat must be positive and shorter than the visibility extension"
+            );
         }
 
         this.taskScheduler = taskScheduler;
+        this.processingLeaseManager = processingLeaseManager;
         this.visibilityExtensionSeconds = visibilityExtensionSeconds;
         this.heartbeatInterval = Duration.ofSeconds(heartbeatIntervalSeconds);
     }
@@ -48,17 +53,93 @@ public class TransactionImportMessageVisibilityHeartbeat {
         Objects.requireNonNull(eventId, "Event ID is required");
         Objects.requireNonNull(importId, "Import ID is required");
 
-        visibility.changeTo(visibilityExtensionSeconds);
+        return startHeartbeat(visibility, eventId, importId, null);
+    }
 
-        Instant firstHeartbeat = taskScheduler.getClock().instant().plus(heartbeatInterval);
+    public RunningHeartbeat start(Visibility visibility, TransactionImportProcessingAttempt processingAttempt) {
+        Objects.requireNonNull(visibility, "SQS message visibility is required");
+        Objects.requireNonNull(processingAttempt, "Processing attempt is required");
 
-        ScheduledFuture<?> scheduledTask = taskScheduler.scheduleAtFixedRate(
-                () -> extendVisibility(visibility, eventId, importId),
-                firstHeartbeat,
-                heartbeatInterval
-        );
+        return startHeartbeat(visibility, processingAttempt.getEventId(), processingAttempt.getImportId(), processingAttempt);
+    }
 
-        return new RunningHeartbeat(scheduledTask);
+    private RunningHeartbeat startHeartbeat(Visibility visibility,
+                                            UUID eventId,
+                                            Long importId,
+                                            TransactionImportProcessingAttempt processingAttempt) {
+        try {
+            visibility.changeTo(visibilityExtensionSeconds);
+
+            AtomicBoolean processingLeaseLost = new AtomicBoolean(false);
+            Instant firstHeartbeat = taskScheduler.getClock().instant().plus(heartbeatInterval);
+
+            ScheduledFuture<?> scheduledTask = taskScheduler.scheduleAtFixedRate(
+                    () -> performHeartbeat(visibility, eventId, importId, processingAttempt, processingLeaseLost),
+                    firstHeartbeat,
+                    heartbeatInterval
+            );
+
+            Runnable closeAction = () -> {
+            };
+
+            if (processingAttempt != null) {
+                closeAction = () -> releaseProcessingLease(processingAttempt);
+            }
+
+            return new RunningHeartbeat(scheduledTask, closeAction, processingLeaseLost);
+        } catch (RuntimeException exception) {
+            if (processingAttempt != null) {
+                releaseProcessingLease(processingAttempt);
+            }
+
+            throw exception;
+        }
+    }
+
+    private void performHeartbeat(Visibility visibility,
+                                  UUID eventId,
+                                  Long importId,
+                                  TransactionImportProcessingAttempt processingAttempt,
+                                  AtomicBoolean processingLeaseLost) {
+        if (processingLeaseLost.get()) {
+            return;
+        }
+
+        if (processingAttempt != null && !renewProcessingLease(processingAttempt)) {
+            processingLeaseLost.set(true);
+            return;
+        }
+
+        extendVisibility(visibility, eventId, importId);
+    }
+
+    private boolean renewProcessingLease(TransactionImportProcessingAttempt processingAttempt) {
+        try {
+            boolean renewed = processingLeaseManager.renew(processingAttempt);
+
+            if (!renewed) {
+                LOGGER.error(
+                        "Lost transaction-import processing lease: eventId={}, importId={}, processingOwner={}, fencingToken={}",
+                        processingAttempt.getEventId(),
+                        processingAttempt.getImportId(),
+                        processingAttempt.getProcessingOwner(),
+                        processingAttempt.getFencingToken()
+                );
+            }
+
+            return renewed;
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "Failed to renew transaction-import processing lease: eventId={}, importId={}, processingOwner={}, fencingToken={}",
+                    processingAttempt.getEventId(),
+                    processingAttempt.getImportId(),
+                    processingAttempt.getProcessingOwner(),
+                    processingAttempt.getFencingToken(),
+                    exception
+            );
+
+            return false;
+        }
     }
 
     private void extendVisibility(Visibility visibility, UUID eventId, Long importId) {
@@ -81,17 +162,56 @@ public class TransactionImportMessageVisibilityHeartbeat {
         }
     }
 
+    private void releaseProcessingLease(TransactionImportProcessingAttempt processingAttempt) {
+        try {
+            boolean released = processingLeaseManager.release(processingAttempt);
+
+            if (!released) {
+                LOGGER.warn(
+                        "Transaction-import processing lease was not released because ownership had changed: eventId={}, importId={}, processingOwner={}, fencingToken={}",
+                        processingAttempt.getEventId(),
+                        processingAttempt.getImportId(),
+                        processingAttempt.getProcessingOwner(),
+                        processingAttempt.getFencingToken()
+                );
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn(
+                    "Failed to release transaction-import processing lease: eventId={}, importId={}, processingOwner={}, fencingToken={}",
+                    processingAttempt.getEventId(),
+                    processingAttempt.getImportId(),
+                    processingAttempt.getProcessingOwner(),
+                    processingAttempt.getFencingToken(),
+                    exception
+            );
+        }
+    }
+
     public static final class RunningHeartbeat implements AutoCloseable {
 
         private final ScheduledFuture<?> scheduledTask;
+        private final Runnable closeAction;
+        private final AtomicBoolean processingLeaseLost;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        private RunningHeartbeat(ScheduledFuture<?> scheduledTask) {
+        private RunningHeartbeat(ScheduledFuture<?> scheduledTask,
+                                 Runnable closeAction,
+                                 AtomicBoolean processingLeaseLost) {
             this.scheduledTask = scheduledTask;
+            this.closeAction = closeAction;
+            this.processingLeaseLost = processingLeaseLost;
+        }
+
+        public boolean hasLostProcessingLease() {
+            return processingLeaseLost.get();
         }
 
         @Override
         public void close() {
-            scheduledTask.cancel(false);
+            if (closed.compareAndSet(false, true)) {
+                scheduledTask.cancel(false);
+                closeAction.run();
+            }
         }
     }
 }
