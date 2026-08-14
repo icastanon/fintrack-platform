@@ -5,6 +5,7 @@ import com.fintrack.workerservice.transactionimport.batch.model.TransactionImpor
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportJobFinalizationService;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportJobLaunchService;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedOutputPreparationService;
+import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedRowStagingService;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportJobProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,13 +26,16 @@ public class TransactionImportRequestedEventProcessor {
     private final TransactionImportJobLaunchService jobLaunchService;
     private final TransactionImportRejectedOutputPreparationService rejectedOutputPreparationService;
     private final TransactionImportJobFinalizationService jobFinalizationService;
+    private final TransactionImportRejectedRowStagingService rejectedRowStagingService;
 
     public TransactionImportRequestedEventProcessor(TransactionImportJobLaunchService jobLaunchService,
                                                     TransactionImportRejectedOutputPreparationService rejectedOutputPreparationService,
-                                                    TransactionImportJobFinalizationService jobFinalizationService) {
+                                                    TransactionImportJobFinalizationService jobFinalizationService,
+                                                    TransactionImportRejectedRowStagingService rejectedRowStagingService) {
         this.jobLaunchService = jobLaunchService;
         this.rejectedOutputPreparationService = rejectedOutputPreparationService;
         this.jobFinalizationService = jobFinalizationService;
+        this.rejectedRowStagingService = rejectedRowStagingService;
     }
 
     public boolean process(TransactionImportRequestedEvent event) {
@@ -87,6 +91,8 @@ public class TransactionImportRequestedEventProcessor {
 
         boolean firstCompletion = jobFinalizationService.complete(event, jobExecution, rejectedOutput);
 
+        cleanupRejectedRows(event.getImportId());
+
         LOGGER.info(
                 "Finalized completed transaction import: eventId={}, importId={}, jobExecutionId={}, "
                         + "rejectedRows={}, rejectedObjectKey={}, firstCompletion={}",
@@ -99,6 +105,27 @@ public class TransactionImportRequestedEventProcessor {
         );
 
         return firstCompletion;
+    }
+
+    private void cleanupRejectedRows(Long importId) {
+        try {
+            int deletedRows = rejectedRowStagingService.deleteAll(importId);
+
+            if (deletedRows > 0) {
+                LOGGER.info(
+                        "Deleted finalized transaction import rejected-row staging: importId={}, deletedRows={}",
+                        importId,
+                        deletedRows
+                );
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn(
+                    "Failed to delete finalized transaction import rejected-row staging; "
+                            + "rows will remain available for retention cleanup: importId={}",
+                    importId,
+                    exception
+            );
+        }
     }
 
     private boolean handleUnsuccessfulExecution(TransactionImportRequestedEvent event,

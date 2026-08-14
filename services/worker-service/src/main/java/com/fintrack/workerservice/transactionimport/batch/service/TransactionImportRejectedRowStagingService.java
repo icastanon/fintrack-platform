@@ -49,7 +49,7 @@ public class TransactionImportRejectedRowStagingService {
         return rejectedRowStagingRepository.countByImportId(importId);
     }
 
-    @Transactional(propagation = Propagation.MANDATORY)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int deleteAll(Long importId) {
         requirePositiveImportId(importId);
         return rejectedRowStagingRepository.deleteAllByImportId(importId);

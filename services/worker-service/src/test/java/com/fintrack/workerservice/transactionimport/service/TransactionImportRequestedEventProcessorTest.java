@@ -5,11 +5,13 @@ import com.fintrack.workerservice.transactionimport.batch.model.TransactionImpor
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportJobFinalizationService;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportJobLaunchService;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedOutputPreparationService;
+import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedRowStagingService;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportJobProcessingException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,6 +28,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -57,13 +60,16 @@ class TransactionImportRequestedEventProcessorTest {
     private TransactionImportJobFinalizationService jobFinalizationService;
 
     @Mock
+    private TransactionImportRejectedRowStagingService rejectedRowStagingService;
+
+    @Mock
     private JobExecution jobExecution;
 
     @InjectMocks
     private TransactionImportRequestedEventProcessor eventProcessor;
 
     @Test
-    void processCompletesSuccessfulExecutionWithRejectedOutput() throws Exception {
+    void processCompletesSuccessfulExecutionThenDeletesRejectedRowStaging() throws Exception {
         TransactionImportRequestedEvent event = event();
         TransactionImportRejectedOutput rejectedOutput =
                 TransactionImportRejectedOutput.uploaded(2, REJECTED_OBJECT_KEY);
@@ -80,23 +86,27 @@ class TransactionImportRequestedEventProcessorTest {
                 jobExecution,
                 rejectedOutput
         )).thenReturn(true);
+        when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(2);
 
         boolean firstCompletion = eventProcessor.process(event);
 
         assertThat(firstCompletion).isTrue();
 
-        verify(jobLaunchService).launch(event);
-        verify(rejectedOutputPreparationService)
-                .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        verify(jobFinalizationService).complete(
-                event,
-                jobExecution,
-                rejectedOutput
+        InOrder order = inOrder(
+                rejectedOutputPreparationService,
+                jobFinalizationService,
+                rejectedRowStagingService
         );
+
+        order.verify(rejectedOutputPreparationService)
+                .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
+        order.verify(jobFinalizationService)
+                .complete(event, jobExecution, rejectedOutput);
+        order.verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
     @Test
-    void processCompletesSuccessfulExecutionWithoutRejectedRows() throws Exception {
+    void processCompletesExecutionWithoutRejectedRowsAndRunsIdempotentCleanup() throws Exception {
         TransactionImportRequestedEvent event = event();
         TransactionImportRejectedOutput rejectedOutput =
                 TransactionImportRejectedOutput.none();
@@ -113,6 +123,7 @@ class TransactionImportRequestedEventProcessorTest {
                 jobExecution,
                 rejectedOutput
         )).thenReturn(true);
+        when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(0);
 
         boolean firstCompletion = eventProcessor.process(event);
 
@@ -120,15 +131,14 @@ class TransactionImportRequestedEventProcessorTest {
 
         verify(rejectedOutputPreparationService)
                 .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        verify(jobFinalizationService).complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        );
+        verify(jobFinalizationService)
+                .complete(event, jobExecution, rejectedOutput);
+        verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
     @Test
-    void processReturnsFalseWhenCompletionWasAlreadyFinalized() throws Exception {
+    void processReturnsFalseAndRetriesCleanupWhenCompletionWasAlreadyFinalized()
+            throws Exception {
         TransactionImportRequestedEvent event = event();
         TransactionImportRejectedOutput rejectedOutput =
                 TransactionImportRejectedOutput.none();
@@ -145,6 +155,7 @@ class TransactionImportRequestedEventProcessorTest {
                 jobExecution,
                 rejectedOutput
         )).thenReturn(false);
+        when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(2);
 
         boolean firstCompletion = eventProcessor.process(event);
 
@@ -152,15 +163,13 @@ class TransactionImportRequestedEventProcessorTest {
 
         verify(rejectedOutputPreparationService)
                 .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        verify(jobFinalizationService).complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        );
+        verify(jobFinalizationService)
+                .complete(event, jobExecution, rejectedOutput);
+        verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
     @Test
-    void processFinalizesPersistedCompletedExecution() throws Exception {
+    void processFinalizesPersistedCompletedExecutionThenRunsCleanup() throws Exception {
         TransactionImportRequestedEvent event = event();
         TransactionImportRejectedOutput rejectedOutput =
                 TransactionImportRejectedOutput.uploaded(2, REJECTED_OBJECT_KEY);
@@ -181,6 +190,7 @@ class TransactionImportRequestedEventProcessorTest {
                 jobExecution,
                 rejectedOutput
         )).thenReturn(true);
+        when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(2);
 
         boolean firstCompletion = eventProcessor.process(event);
 
@@ -190,16 +200,16 @@ class TransactionImportRequestedEventProcessorTest {
         verify(jobLaunchService).findLastExecution(event);
         verify(rejectedOutputPreparationService)
                 .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        verify(jobFinalizationService).complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        );
+        verify(jobFinalizationService)
+                .complete(event, jobExecution, rejectedOutput);
+        verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
     @Test
-    void processDoesNotFinalizeWhenRejectedOutputUploadFails() throws Exception {
+    void processDoesNotFinalizeOrCleanupWhenRejectedOutputUploadFails()
+            throws Exception {
         TransactionImportRequestedEvent event = event();
+
         IllegalStateException uploadFailure =
                 new IllegalStateException("S3 rejected-output upload failed");
 
@@ -213,7 +223,65 @@ class TransactionImportRequestedEventProcessorTest {
         assertThatThrownBy(() -> eventProcessor.process(event))
                 .isSameAs(uploadFailure);
 
-        verifyNoInteractions(jobFinalizationService);
+        verifyNoInteractions(
+                jobFinalizationService,
+                rejectedRowStagingService
+        );
+    }
+
+    @Test
+    void processDoesNotCleanupWhenFinalizationFails() throws Exception {
+        TransactionImportRequestedEvent event = event();
+        TransactionImportRejectedOutput rejectedOutput =
+                TransactionImportRejectedOutput.uploaded(2, REJECTED_OBJECT_KEY);
+
+        IllegalStateException finalizationFailure =
+                new IllegalStateException("Database finalization failed");
+
+        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
+        when(rejectedOutputPreparationService.prepareAndUpload(
+                IMPORT_ID,
+                SOURCE_OBJECT_KEY
+        )).thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(
+                event,
+                jobExecution,
+                rejectedOutput
+        )).thenThrow(finalizationFailure);
+
+        assertThatThrownBy(() -> eventProcessor.process(event))
+                .isSameAs(finalizationFailure);
+
+        verifyNoInteractions(rejectedRowStagingService);
+    }
+
+    @Test
+    void processStillSucceedsWhenPostFinalizationCleanupFails() throws Exception {
+        TransactionImportRequestedEvent event = event();
+        TransactionImportRejectedOutput rejectedOutput =
+                TransactionImportRejectedOutput.uploaded(2, REJECTED_OBJECT_KEY);
+
+        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
+        when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
+        when(rejectedOutputPreparationService.prepareAndUpload(
+                IMPORT_ID,
+                SOURCE_OBJECT_KEY
+        )).thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(
+                event,
+                jobExecution,
+                rejectedOutput
+        )).thenReturn(true);
+        when(rejectedRowStagingService.deleteAll(IMPORT_ID))
+                .thenThrow(new IllegalStateException("Cleanup database failure"));
+
+        boolean firstCompletion = eventProcessor.process(event);
+
+        assertThat(firstCompletion).isTrue();
+
+        verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
     @Test
@@ -242,7 +310,10 @@ class TransactionImportRequestedEventProcessorTest {
                 jobExecution,
                 expectedSummary
         );
-        verifyNoInteractions(rejectedOutputPreparationService);
+        verifyNoInteractions(
+                rejectedOutputPreparationService,
+                rejectedRowStagingService
+        );
     }
 
     @Test
@@ -265,7 +336,8 @@ class TransactionImportRequestedEventProcessorTest {
         verify(jobLaunchService).findLastExecution(event);
         verifyNoInteractions(
                 rejectedOutputPreparationService,
-                jobFinalizationService
+                jobFinalizationService,
+                rejectedRowStagingService
         );
     }
 
@@ -285,7 +357,8 @@ class TransactionImportRequestedEventProcessorTest {
 
         verifyNoInteractions(
                 rejectedOutputPreparationService,
-                jobFinalizationService
+                jobFinalizationService,
+                rejectedRowStagingService
         );
     }
 
@@ -304,7 +377,8 @@ class TransactionImportRequestedEventProcessorTest {
 
         verifyNoInteractions(
                 rejectedOutputPreparationService,
-                jobFinalizationService
+                jobFinalizationService,
+                rejectedRowStagingService
         );
     }
 
@@ -330,7 +404,10 @@ class TransactionImportRequestedEventProcessorTest {
                 jobExecution,
                 expectedSummary
         );
-        verifyNoInteractions(rejectedOutputPreparationService);
+        verifyNoInteractions(
+                rejectedOutputPreparationService,
+                rejectedRowStagingService
+        );
     }
 
     @ParameterizedTest
@@ -338,7 +415,8 @@ class TransactionImportRequestedEventProcessorTest {
             value = BatchStatus.class,
             names = {"STOPPED", "ABANDONED", "UNKNOWN"}
     )
-    void processMarksOtherUnsuccessfulTerminalStatusesAsFailed(BatchStatus status) throws Exception {
+    void processMarksOtherUnsuccessfulTerminalStatusesAsFailed(BatchStatus status)
+            throws Exception {
         TransactionImportRequestedEvent event = event();
 
         String expectedSummary =
@@ -358,7 +436,10 @@ class TransactionImportRequestedEventProcessorTest {
                 jobExecution,
                 expectedSummary
         );
-        verifyNoInteractions(rejectedOutputPreparationService);
+        verifyNoInteractions(
+                rejectedOutputPreparationService,
+                rejectedRowStagingService
+        );
     }
 
     @ParameterizedTest
@@ -382,7 +463,8 @@ class TransactionImportRequestedEventProcessorTest {
 
         verifyNoInteractions(
                 rejectedOutputPreparationService,
-                jobFinalizationService
+                jobFinalizationService,
+                rejectedRowStagingService
         );
     }
 
@@ -395,7 +477,8 @@ class TransactionImportRequestedEventProcessorTest {
         verifyNoInteractions(
                 jobLaunchService,
                 rejectedOutputPreparationService,
-                jobFinalizationService
+                jobFinalizationService,
+                rejectedRowStagingService
         );
     }
 
