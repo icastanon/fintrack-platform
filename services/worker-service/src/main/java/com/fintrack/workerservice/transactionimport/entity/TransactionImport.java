@@ -98,10 +98,6 @@ public class TransactionImport {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public void markRunning() {
-        markRunning(Instant.now());
-    }
-
     public boolean hasActiveProcessingLease(Instant now) {
         Objects.requireNonNull(now, "Current time is required");
 

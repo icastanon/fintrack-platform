@@ -13,14 +13,14 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class TransactionImportMessageVisibilityHeartbeat {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TransactionImportMessageVisibilityHeartbeat.class);
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(TransactionImportMessageVisibilityHeartbeat.class);
 
     private final TaskScheduler taskScheduler;
     private final TransactionImportProcessingLeaseManager processingLeaseManager;
@@ -48,25 +48,10 @@ public class TransactionImportMessageVisibilityHeartbeat {
         this.heartbeatInterval = Duration.ofSeconds(heartbeatIntervalSeconds);
     }
 
-    public RunningHeartbeat start(Visibility visibility, UUID eventId, Long importId) {
-        Objects.requireNonNull(visibility, "SQS message visibility is required");
-        Objects.requireNonNull(eventId, "Event ID is required");
-        Objects.requireNonNull(importId, "Import ID is required");
-
-        return startHeartbeat(visibility, eventId, importId, null);
-    }
-
     public RunningHeartbeat start(Visibility visibility, TransactionImportProcessingAttempt processingAttempt) {
         Objects.requireNonNull(visibility, "SQS message visibility is required");
         Objects.requireNonNull(processingAttempt, "Processing attempt is required");
 
-        return startHeartbeat(visibility, processingAttempt.getEventId(), processingAttempt.getImportId(), processingAttempt);
-    }
-
-    private RunningHeartbeat startHeartbeat(Visibility visibility,
-                                            UUID eventId,
-                                            Long importId,
-                                            TransactionImportProcessingAttempt processingAttempt) {
         try {
             visibility.changeTo(visibilityExtensionSeconds);
 
@@ -74,43 +59,35 @@ public class TransactionImportMessageVisibilityHeartbeat {
             Instant firstHeartbeat = taskScheduler.getClock().instant().plus(heartbeatInterval);
 
             ScheduledFuture<?> scheduledTask = taskScheduler.scheduleAtFixedRate(
-                    () -> performHeartbeat(visibility, eventId, importId, processingAttempt, processingLeaseLost),
+                    () -> performHeartbeat(visibility, processingAttempt, processingLeaseLost),
                     firstHeartbeat,
                     heartbeatInterval
             );
 
-            Runnable closeAction = () -> {
-            };
-
-            if (processingAttempt != null) {
-                closeAction = () -> releaseProcessingLease(processingAttempt);
-            }
-
-            return new RunningHeartbeat(scheduledTask, closeAction, processingLeaseLost);
+            return new RunningHeartbeat(
+                    scheduledTask,
+                    () -> releaseProcessingLease(processingAttempt),
+                    processingLeaseLost
+            );
         } catch (RuntimeException exception) {
-            if (processingAttempt != null) {
-                releaseProcessingLease(processingAttempt);
-            }
-
+            releaseProcessingLease(processingAttempt);
             throw exception;
         }
     }
 
     private void performHeartbeat(Visibility visibility,
-                                  UUID eventId,
-                                  Long importId,
                                   TransactionImportProcessingAttempt processingAttempt,
                                   AtomicBoolean processingLeaseLost) {
         if (processingLeaseLost.get()) {
             return;
         }
 
-        if (processingAttempt != null && !renewProcessingLease(processingAttempt)) {
+        if (!renewProcessingLease(processingAttempt)) {
             processingLeaseLost.set(true);
             return;
         }
 
-        extendVisibility(visibility, eventId, importId);
+        extendVisibility(visibility, processingAttempt);
     }
 
     private boolean renewProcessingLease(TransactionImportProcessingAttempt processingAttempt) {
@@ -142,21 +119,21 @@ public class TransactionImportMessageVisibilityHeartbeat {
         }
     }
 
-    private void extendVisibility(Visibility visibility, UUID eventId, Long importId) {
+    private void extendVisibility(Visibility visibility, TransactionImportProcessingAttempt processingAttempt) {
         try {
             visibility.changeTo(visibilityExtensionSeconds);
 
             LOGGER.debug(
                     "Extended transaction-import message visibility: eventId={}, importId={}, visibilitySeconds={}",
-                    eventId,
-                    importId,
+                    processingAttempt.getEventId(),
+                    processingAttempt.getImportId(),
                     visibilityExtensionSeconds
             );
         } catch (RuntimeException exception) {
             LOGGER.warn(
                     "Failed to extend transaction-import message visibility: eventId={}, importId={}",
-                    eventId,
-                    importId,
+                    processingAttempt.getEventId(),
+                    processingAttempt.getImportId(),
                     exception
             );
         }

@@ -19,11 +19,10 @@ class TransactionImportTest {
     void claimProcessingLeaseStoresOwnershipAndTransitionsImportToRunning() {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.QUEUED);
 
-        long fencingToken = transactionImport.claimProcessingLease(
-                PROCESSING_OWNER,
-                CLAIMED_AT,
-                LEASE_EXPIRES_AT
-        );
+        long fencingToken =
+                transactionImport.claimProcessingLease(PROCESSING_OWNER,
+                        CLAIMED_AT,
+                        LEASE_EXPIRES_AT);
 
         assertThat(fencingToken).isEqualTo(1);
         assertThat(transactionImport.getProcessingOwner()).isEqualTo(PROCESSING_OWNER);
@@ -31,6 +30,8 @@ class TransactionImportTest {
         assertThat(transactionImport.getProcessingFencingToken()).isEqualTo(1);
         assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.RUNNING);
         assertThat(transactionImport.getStartedAt()).isEqualTo(CLAIMED_AT);
+        assertThat(transactionImport.getCompletedAt()).isNull();
+        assertThat(transactionImport.getFailureSummary()).isNull();
     }
 
     @Test
@@ -38,23 +39,60 @@ class TransactionImportTest {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
 
         ReflectionTestUtils.setField(transactionImport, "processingOwner", "old-worker");
-        ReflectionTestUtils.setField(
-                transactionImport,
+        ReflectionTestUtils.setField(transactionImport,
                 "processingLeaseExpiresAt",
-                Instant.parse("2026-08-14T11:59:00Z")
-        );
+                Instant.parse("2026-08-14T11:59:00Z"));
         ReflectionTestUtils.setField(transactionImport, "processingFencingToken", 4L);
 
-        long fencingToken = transactionImport.claimProcessingLease(
-                PROCESSING_OWNER,
-                CLAIMED_AT,
-                LEASE_EXPIRES_AT
-        );
+        long fencingToken =
+                transactionImport.claimProcessingLease(PROCESSING_OWNER,
+                        CLAIMED_AT,
+                        LEASE_EXPIRES_AT);
 
         assertThat(fencingToken).isEqualTo(5);
         assertThat(transactionImport.getProcessingOwner()).isEqualTo(PROCESSING_OWNER);
         assertThat(transactionImport.getProcessingLeaseExpiresAt()).isEqualTo(LEASE_EXPIRES_AT);
         assertThat(transactionImport.getProcessingFencingToken()).isEqualTo(5);
+    }
+
+    @Test
+    void claimProcessingLeaseRestartsFailedImportAndPreservesOriginalStartTime() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.FAILED);
+        Instant originalStartedAt = Instant.parse("2026-08-12T12:00:00Z");
+
+        ReflectionTestUtils.setField(transactionImport, "startedAt", originalStartedAt);
+        ReflectionTestUtils.setField(transactionImport,
+                "completedAt",
+                Instant.parse("2026-08-12T12:05:00Z"));
+        ReflectionTestUtils.setField(transactionImport, "failureSummary", "Temporary failure");
+        ReflectionTestUtils.setField(transactionImport, "processingFencingToken", 2L);
+
+        long fencingToken =
+                transactionImport.claimProcessingLease(PROCESSING_OWNER,
+                        CLAIMED_AT,
+                        LEASE_EXPIRES_AT);
+
+        assertThat(fencingToken).isEqualTo(3);
+        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.RUNNING);
+        assertThat(transactionImport.getStartedAt()).isEqualTo(originalStartedAt);
+        assertThat(transactionImport.getCompletedAt()).isNull();
+        assertThat(transactionImport.getFailureSummary()).isNull();
+        assertThat(transactionImport.getProcessingOwner()).isEqualTo(PROCESSING_OWNER);
+    }
+
+    @Test
+    void claimProcessingLeasePreservesOriginalStartTimeForRunningImport() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
+        Instant originalStartedAt = Instant.parse("2026-08-12T12:00:00Z");
+
+        ReflectionTestUtils.setField(transactionImport, "startedAt", originalStartedAt);
+
+        transactionImport.claimProcessingLease(PROCESSING_OWNER,
+                CLAIMED_AT,
+                LEASE_EXPIRES_AT);
+
+        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.RUNNING);
+        assertThat(transactionImport.getStartedAt()).isEqualTo(originalStartedAt);
     }
 
     @Test
@@ -89,12 +127,9 @@ class TransactionImportTest {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.COMPLETED);
 
         assertThatThrownBy(() ->
-                transactionImport.claimProcessingLease(
-                        PROCESSING_OWNER,
+                transactionImport.claimProcessingLease(PROCESSING_OWNER,
                         CLAIMED_AT,
-                        LEASE_EXPIRES_AT
-                )
-        )
+                        LEASE_EXPIRES_AT))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("A completed transaction import cannot be claimed");
     }
@@ -104,8 +139,7 @@ class TransactionImportTest {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.QUEUED);
 
         assertThatThrownBy(() ->
-                transactionImport.claimProcessingLease(" ", CLAIMED_AT, LEASE_EXPIRES_AT)
-        )
+                transactionImport.claimProcessingLease(" ", CLAIMED_AT, LEASE_EXPIRES_AT))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Processing owner is required");
     }
@@ -115,74 +149,11 @@ class TransactionImportTest {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.QUEUED);
 
         assertThatThrownBy(() ->
-                transactionImport.claimProcessingLease(PROCESSING_OWNER, CLAIMED_AT, CLAIMED_AT)
-        )
+                transactionImport.claimProcessingLease(PROCESSING_OWNER,
+                        CLAIMED_AT,
+                        CLAIMED_AT))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Processing lease expiration must be after the claim time");
-    }
-
-    @Test
-    void markRunningTransitionsQueuedImportAndSetsInitialStartTime() {
-        TransactionImport transactionImport = transactionImport(TransactionImportStatus.QUEUED);
-        Instant before = Instant.now();
-
-        transactionImport.markRunning();
-
-        Instant after = Instant.now();
-
-        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.RUNNING);
-        assertThat(transactionImport.getStartedAt()).isBetween(before, after);
-        assertThat(transactionImport.getCompletedAt()).isNull();
-        assertThat(transactionImport.getFailureSummary()).isNull();
-    }
-
-    @Test
-    void markRunningPreservesOriginalStartTimeWhenRestartingFailedImport() {
-        TransactionImport transactionImport = transactionImport(TransactionImportStatus.FAILED);
-        Instant originalStartedAt = Instant.parse("2026-08-12T12:00:00Z");
-
-        ReflectionTestUtils.setField(transactionImport, "startedAt", originalStartedAt);
-        ReflectionTestUtils.setField(
-                transactionImport,
-                "completedAt",
-                Instant.parse("2026-08-12T12:05:00Z")
-        );
-        ReflectionTestUtils.setField(transactionImport, "failureSummary", "Temporary failure");
-
-        transactionImport.markRunning();
-
-        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.RUNNING);
-        assertThat(transactionImport.getStartedAt()).isEqualTo(originalStartedAt);
-        assertThat(transactionImport.getCompletedAt()).isNull();
-        assertThat(transactionImport.getFailureSummary()).isNull();
-    }
-
-    @Test
-    void markRunningIsIdempotentForRunningImport() {
-        TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
-        Instant originalStartedAt = Instant.parse("2026-08-12T12:00:00Z");
-
-        ReflectionTestUtils.setField(transactionImport, "startedAt", originalStartedAt);
-
-        transactionImport.markRunning();
-
-        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.RUNNING);
-        assertThat(transactionImport.getStartedAt()).isEqualTo(originalStartedAt);
-    }
-
-    @Test
-    void markRunningRejectsCompletedImport() {
-        TransactionImport transactionImport = transactionImport(TransactionImportStatus.COMPLETED);
-        Instant completedAt = Instant.parse("2026-08-12T12:05:00Z");
-
-        ReflectionTestUtils.setField(transactionImport, "completedAt", completedAt);
-
-        assertThatThrownBy(transactionImport::markRunning)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("A completed transaction import cannot be restarted");
-
-        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.COMPLETED);
-        assertThat(transactionImport.getCompletedAt()).isEqualTo(completedAt);
     }
 
     @Test
@@ -273,8 +244,7 @@ class TransactionImportTest {
         TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
 
         assertThatThrownBy(() ->
-                transactionImport.markCompleted(8, 0, 0, REJECTED_OBJECT_KEY)
-        )
+                transactionImport.markCompleted(8, 0, 0, REJECTED_OBJECT_KEY))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("A rejected output object key cannot exist without skipped rows");
     }

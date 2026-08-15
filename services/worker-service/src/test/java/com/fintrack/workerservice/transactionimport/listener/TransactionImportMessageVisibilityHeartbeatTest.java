@@ -48,14 +48,12 @@ class TransactionImportMessageVisibilityHeartbeatTest {
     private static final Instant NOW = Instant.parse("2026-08-12T12:00:00Z");
 
     private static final TransactionImportProcessingAttempt PROCESSING_ATTEMPT =
-            new TransactionImportProcessingAttempt(
-                    EVENT_ID,
+            new TransactionImportProcessingAttempt(EVENT_ID,
                     IMPORT_ID,
                     ACCOUNT_ID,
                     USER_ID,
                     PROCESSING_OWNER,
-                    FENCING_TOKEN
-            );
+                    FENCING_TOKEN);
 
     @Mock
     private TaskScheduler taskScheduler;
@@ -73,12 +71,10 @@ class TransactionImportMessageVisibilityHeartbeatTest {
 
     @BeforeEach
     void setUp() {
-        heartbeat = new TransactionImportMessageVisibilityHeartbeat(
-                taskScheduler,
+        heartbeat = new TransactionImportMessageVisibilityHeartbeat(taskScheduler,
                 processingLeaseManager,
                 VISIBILITY_EXTENSION_SECONDS,
-                HEARTBEAT_INTERVAL_SECONDS
-        );
+                HEARTBEAT_INTERVAL_SECONDS);
     }
 
     @Test
@@ -89,9 +85,10 @@ class TransactionImportMessageVisibilityHeartbeatTest {
                 any(Instant.class),
                 any(Duration.class)
         );
+        when(processingLeaseManager.release(PROCESSING_ATTEMPT)).thenReturn(true);
 
         TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
-                heartbeat.start(visibility, EVENT_ID, IMPORT_ID);
+                heartbeat.start(visibility, PROCESSING_ATTEMPT);
 
         ArgumentCaptor<Instant> firstHeartbeatCaptor = ArgumentCaptor.forClass(Instant.class);
         ArgumentCaptor<Duration> intervalCaptor = ArgumentCaptor.forClass(Duration.class);
@@ -110,46 +107,11 @@ class TransactionImportMessageVisibilityHeartbeatTest {
         runningHeartbeat.close();
 
         verify(scheduledTask).cancel(false);
-        verifyNoInteractions(processingLeaseManager);
+        verify(processingLeaseManager).release(PROCESSING_ATTEMPT);
     }
 
     @Test
-    void visibilityOnlyHeartbeatExtendsVisibilityAgain() {
-        ArgumentCaptor<Runnable> taskCaptor = arrangeScheduledTask();
-
-        TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
-                heartbeat.start(visibility, EVENT_ID, IMPORT_ID);
-
-        taskCaptor.getValue().run();
-
-        verify(visibility, times(2)).changeTo(VISIBILITY_EXTENSION_SECONDS);
-        verifyNoInteractions(processingLeaseManager);
-
-        runningHeartbeat.close();
-    }
-
-    @Test
-    void visibilityOnlyHeartbeatRecordsSqsFailureWithoutTerminatingTask() {
-        ArgumentCaptor<Runnable> taskCaptor = arrangeScheduledTask();
-        RuntimeException cause = new IllegalStateException("SQS unavailable");
-
-        doNothing().doThrow(cause).when(visibility).changeTo(VISIBILITY_EXTENSION_SECONDS);
-
-        TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
-                heartbeat.start(visibility, EVENT_ID, IMPORT_ID);
-
-        assertThatCode(taskCaptor.getValue()::run).doesNotThrowAnyException();
-
-        verify(visibility, times(2)).changeTo(VISIBILITY_EXTENSION_SECONDS);
-        verify(scheduledTask, never()).cancel(false);
-
-        runningHeartbeat.close();
-
-        verify(scheduledTask).cancel(false);
-    }
-
-    @Test
-    void processingHeartbeatRenewsDatabaseLeaseBeforeExtendingVisibility() {
+    void heartbeatRenewsDatabaseLeaseBeforeExtendingVisibility() {
         ArgumentCaptor<Runnable> taskCaptor = arrangeScheduledTask();
 
         when(processingLeaseManager.renew(PROCESSING_ATTEMPT)).thenReturn(true);
@@ -174,10 +136,37 @@ class TransactionImportMessageVisibilityHeartbeatTest {
     }
 
     @Test
-    void processingHeartbeatStopsExtendingVisibilityWhenLeaseIsLost() {
+    void heartbeatRecordsSqsFailureWithoutMarkingDatabaseLeaseAsLost() {
+        ArgumentCaptor<Runnable> taskCaptor = arrangeScheduledTask();
+        RuntimeException cause = new IllegalStateException("SQS unavailable");
+
+        when(processingLeaseManager.renew(PROCESSING_ATTEMPT)).thenReturn(true);
+        when(processingLeaseManager.release(PROCESSING_ATTEMPT)).thenReturn(true);
+        doNothing().doThrow(cause).when(visibility).changeTo(VISIBILITY_EXTENSION_SECONDS);
+
+        TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
+                heartbeat.start(visibility, PROCESSING_ATTEMPT);
+
+        assertThatCode(taskCaptor.getValue()::run).doesNotThrowAnyException();
+
+        assertThat(runningHeartbeat.hasLostProcessingLease()).isFalse();
+
+        verify(processingLeaseManager).renew(PROCESSING_ATTEMPT);
+        verify(visibility, times(2)).changeTo(VISIBILITY_EXTENSION_SECONDS);
+        verify(scheduledTask, never()).cancel(false);
+
+        runningHeartbeat.close();
+
+        verify(scheduledTask).cancel(false);
+        verify(processingLeaseManager).release(PROCESSING_ATTEMPT);
+    }
+
+    @Test
+    void heartbeatStopsExtendingVisibilityWhenLeaseIsLost() {
         ArgumentCaptor<Runnable> taskCaptor = arrangeScheduledTask();
 
         when(processingLeaseManager.renew(PROCESSING_ATTEMPT)).thenReturn(false);
+        when(processingLeaseManager.release(PROCESSING_ATTEMPT)).thenReturn(false);
 
         TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
                 heartbeat.start(visibility, PROCESSING_ATTEMPT);
@@ -191,14 +180,17 @@ class TransactionImportMessageVisibilityHeartbeatTest {
         verify(visibility).changeTo(VISIBILITY_EXTENSION_SECONDS);
 
         runningHeartbeat.close();
+
+        verify(processingLeaseManager).release(PROCESSING_ATTEMPT);
     }
 
     @Test
-    void processingHeartbeatStopsExtendingVisibilityWhenLeaseRenewalThrows() {
+    void heartbeatStopsExtendingVisibilityWhenLeaseRenewalThrows() {
         ArgumentCaptor<Runnable> taskCaptor = arrangeScheduledTask();
         RuntimeException cause = new IllegalStateException("PostgreSQL unavailable");
 
         when(processingLeaseManager.renew(PROCESSING_ATTEMPT)).thenThrow(cause);
+        when(processingLeaseManager.release(PROCESSING_ATTEMPT)).thenReturn(true);
 
         TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
                 heartbeat.start(visibility, PROCESSING_ATTEMPT);
@@ -212,6 +204,8 @@ class TransactionImportMessageVisibilityHeartbeatTest {
         verify(visibility).changeTo(VISIBILITY_EXTENSION_SECONDS);
 
         runningHeartbeat.close();
+
+        verify(processingLeaseManager).release(PROCESSING_ATTEMPT);
     }
 
     @Test
@@ -231,7 +225,23 @@ class TransactionImportMessageVisibilityHeartbeatTest {
     }
 
     @Test
-    void processingStartReleasesLeaseWhenInitialVisibilityExtensionFails() {
+    void closeDoesNotThrowWhenLeaseReleaseFails() {
+        arrangeScheduledTask();
+
+        RuntimeException cause = new IllegalStateException("PostgreSQL unavailable");
+        when(processingLeaseManager.release(PROCESSING_ATTEMPT)).thenThrow(cause);
+
+        TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
+                heartbeat.start(visibility, PROCESSING_ATTEMPT);
+
+        assertThatCode(runningHeartbeat::close).doesNotThrowAnyException();
+
+        verify(scheduledTask).cancel(false);
+        verify(processingLeaseManager).release(PROCESSING_ATTEMPT);
+    }
+
+    @Test
+    void startReleasesLeaseWhenInitialVisibilityExtensionFails() {
         RuntimeException cause = new IllegalStateException("SQS unavailable");
 
         doThrow(cause).when(visibility).changeTo(VISIBILITY_EXTENSION_SECONDS);
@@ -248,7 +258,7 @@ class TransactionImportMessageVisibilityHeartbeatTest {
     }
 
     @Test
-    void processingStartReleasesLeaseWhenSchedulingFails() {
+    void startReleasesLeaseWhenSchedulingFails() {
         RuntimeException cause = new IllegalStateException("Scheduler unavailable");
 
         when(taskScheduler.getClock()).thenReturn(Clock.fixed(NOW, ZoneOffset.UTC));
@@ -263,22 +273,6 @@ class TransactionImportMessageVisibilityHeartbeatTest {
 
         verify(visibility).changeTo(VISIBILITY_EXTENSION_SECONDS);
         verify(processingLeaseManager).release(PROCESSING_ATTEMPT);
-    }
-
-    @Test
-    void visibilityOnlyStartPropagatesInitialFailureWithoutSchedulingHeartbeat() {
-        RuntimeException cause = new IllegalStateException("SQS unavailable");
-
-        doThrow(cause).when(visibility).changeTo(VISIBILITY_EXTENSION_SECONDS);
-
-        assertThatThrownBy(() -> heartbeat.start(visibility, EVENT_ID, IMPORT_ID)).isSameAs(cause);
-
-        verify(taskScheduler, never()).scheduleAtFixedRate(
-                any(Runnable.class),
-                any(Instant.class),
-                any(Duration.class)
-        );
-        verifyNoInteractions(processingLeaseManager);
     }
 
     @Test
@@ -325,7 +319,7 @@ class TransactionImportMessageVisibilityHeartbeatTest {
 
     @Test
     void startRejectsNullVisibility() {
-        assertThatThrownBy(() -> heartbeat.start(null, EVENT_ID, IMPORT_ID))
+        assertThatThrownBy(() -> heartbeat.start(null, PROCESSING_ATTEMPT))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("SQS message visibility is required");
 
@@ -333,26 +327,8 @@ class TransactionImportMessageVisibilityHeartbeatTest {
     }
 
     @Test
-    void startRejectsNullEventId() {
-        assertThatThrownBy(() -> heartbeat.start(visibility, null, IMPORT_ID))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("Event ID is required");
-
-        verifyNoInteractions(taskScheduler, processingLeaseManager, visibility);
-    }
-
-    @Test
-    void startRejectsNullImportId() {
-        assertThatThrownBy(() -> heartbeat.start(visibility, EVENT_ID, null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("Import ID is required");
-
-        verifyNoInteractions(taskScheduler, processingLeaseManager, visibility);
-    }
-
-    @Test
-    void processingStartRejectsNullAttempt() {
-        assertThatThrownBy(() -> heartbeat.start(visibility, (TransactionImportProcessingAttempt) null))
+    void startRejectsNullProcessingAttempt() {
+        assertThatThrownBy(() -> heartbeat.start(visibility, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Processing attempt is required");
 

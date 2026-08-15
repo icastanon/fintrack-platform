@@ -52,47 +52,22 @@ class TransactionImportServiceTest {
         matchingImportDoesNotExist();
 
         assertThatThrownBy(() ->
-                transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID)
-        )
+                transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID))
                 .isInstanceOf(TransactionImportNotFoundException.class)
                 .hasMessage("Transaction import 41 was not found for account 22 and user 9");
-    }
-
-    @Test
-    void markRunningLoadsOwnedImportAndTransitionsIt() {
-        matchingImportExists();
-
-        transactionImportService.markRunning(IMPORT_ID, ACCOUNT_ID, USER_ID);
-
-        verify(transactionImport).markRunning();
-    }
-
-    @Test
-    void markRunningThrowsWhenImportDoesNotMatchRequest() {
-        matchingImportDoesNotExist();
-
-        assertThatThrownBy(() ->
-                transactionImportService.markRunning(IMPORT_ID, ACCOUNT_ID, USER_ID)
-        )
-                .isInstanceOf(TransactionImportNotFoundException.class)
-                .hasMessage("Transaction import 41 was not found for account 22 and user 9");
-
-        verifyNoInteractions(transactionImport);
     }
 
     @Test
     void markCompletedLoadsOwnedImportAndStoresFinalState() {
         matchingImportExists();
 
-        transactionImportService.markCompleted(
-                IMPORT_ID,
+        transactionImportService.markCompleted(IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 8,
                 2,
                 0,
-                REJECTED_OBJECT_KEY
-        );
+                REJECTED_OBJECT_KEY);
 
         verify(transactionImport).markCompleted(8, 2, 0, REJECTED_OBJECT_KEY);
     }
@@ -101,15 +76,13 @@ class TransactionImportServiceTest {
     void markCompletedWithoutRejectedRowsStoresNullObjectKey() {
         matchingImportExists();
 
-        transactionImportService.markCompleted(
-                IMPORT_ID,
+        transactionImportService.markCompleted(IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 8,
                 0,
                 0,
-                null
-        );
+                null);
 
         verify(transactionImport).markCompleted(8, 0, 0, null);
     }
@@ -119,16 +92,13 @@ class TransactionImportServiceTest {
         matchingImportDoesNotExist();
 
         assertThatThrownBy(() ->
-                transactionImportService.markCompleted(
-                        IMPORT_ID,
+                transactionImportService.markCompleted(IMPORT_ID,
                         ACCOUNT_ID,
                         USER_ID,
                         8,
                         0,
                         0,
-                        null
-                )
-        )
+                        null))
                 .isInstanceOf(TransactionImportNotFoundException.class)
                 .hasMessage("Transaction import 41 was not found for account 22 and user 9");
 
@@ -139,32 +109,46 @@ class TransactionImportServiceTest {
     void markFailedLoadsOwnedImportAndStoresPartialCounters() {
         matchingImportExists();
 
-        transactionImportService.markFailed(
-                IMPORT_ID,
+        transactionImportService.markFailed(IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 4,
                 1,
                 0,
-                "Temporary failure"
-        );
+                "Temporary failure");
 
         verify(transactionImport).markFailed(4, 1, 0, "Temporary failure");
     }
 
+    @Test
+    void markFailedThrowsWhenImportDoesNotMatchRequest() {
+        matchingImportDoesNotExist();
+
+        assertThatThrownBy(() ->
+                transactionImportService.markFailed(IMPORT_ID,
+                        ACCOUNT_ID,
+                        USER_ID,
+                        4,
+                        1,
+                        0,
+                        "Temporary failure"))
+                .isInstanceOf(TransactionImportNotFoundException.class)
+                .hasMessage("Transaction import 41 was not found for account 22 and user 9");
+
+        verifyNoInteractions(transactionImport);
+    }
+
     private void matchingImportExists() {
-        when(transactionImportRepository.findByIdAndAccountIdAndUserId(
-                IMPORT_ID,
+        when(transactionImportRepository.findByIdAndAccountIdAndUserId(IMPORT_ID,
                 ACCOUNT_ID,
-                USER_ID
-        )).thenReturn(Optional.of(transactionImport));
+                USER_ID))
+                .thenReturn(Optional.of(transactionImport));
     }
 
     private void matchingImportDoesNotExist() {
-        when(transactionImportRepository.findByIdAndAccountIdAndUserId(
-                IMPORT_ID,
+        when(transactionImportRepository.findByIdAndAccountIdAndUserId(IMPORT_ID,
                 ACCOUNT_ID,
-                USER_ID
-        )).thenReturn(Optional.empty());
+                USER_ID))
+                .thenReturn(Optional.empty());
     }
 }

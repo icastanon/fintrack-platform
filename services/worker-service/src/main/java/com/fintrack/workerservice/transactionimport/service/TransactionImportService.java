@@ -21,31 +21,31 @@ public class TransactionImportService {
         return findRequestedImport(importId, accountId, userId);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markRunning(Long importId, Long accountId, Long userId) {
-        TransactionImport transactionImport = findRequestedImport(importId, accountId, userId);
-        transactionImport.markRunning();
-    }
-
     @Transactional(propagation = Propagation.MANDATORY)
-    public void markCompleted(Long importId, Long accountId, Long userId,
-                              long successfulRows, long skippedRows, long failedRows,
+    public void markCompleted(Long importId,
+                              Long accountId,
+                              Long userId,
+                              long successfulRows,
+                              long skippedRows,
+                              long failedRows,
                               String rejectedObjectKey) {
         TransactionImport transactionImport = findRequestedImport(importId, accountId, userId);
         transactionImport.markCompleted(successfulRows, skippedRows, failedRows, rejectedObjectKey);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void markFailed(Long importId, Long accountId, Long userId,
-                           long successfulRows, long skippedRows, long failedRows,
+    public void markFailed(Long importId,
+                           Long accountId,
+                           Long userId,
+                           long successfulRows,
+                           long skippedRows,
+                           long failedRows,
                            String failureSummary) {
         TransactionImport transactionImport = findRequestedImport(importId, accountId, userId);
-        transactionImport.markFailed(
-                successfulRows,
+        transactionImport.markFailed(successfulRows,
                 skippedRows,
                 failedRows,
-                failureSummary
-        );
+                failureSummary);
     }
 
     private TransactionImport findRequestedImport(Long importId, Long accountId, Long userId) {
