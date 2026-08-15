@@ -4,6 +4,7 @@ import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.transactionimport.entity.TransactionImport;
 import com.fintrack.workerservice.transactionimport.entity.TransactionImportStatus;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportNotFoundException;
+import com.fintrack.workerservice.transactionimport.exception.TransactionImportProcessingLeaseLostException;
 import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
 import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingLeaseAcquisition;
 import com.fintrack.workerservice.transactionimport.repository.TransactionImportRepository;
@@ -32,8 +33,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TransactionImportProcessingLeaseManagerTest {
 
-    private static final UUID EVENT_ID =
-            UUID.fromString("a35c1351-d184-4014-b886-c1fbb8c7eec2");
+    private static final UUID EVENT_ID = UUID.fromString("a35c1351-d184-4014-b886-c1fbb8c7eec2");
     private static final Long IMPORT_ID = 41L;
     private static final Long ACCOUNT_ID = 22L;
     private static final Long USER_ID = 9L;
@@ -53,10 +53,8 @@ class TransactionImportProcessingLeaseManagerTest {
 
     @BeforeEach
     void setUp() {
-        leaseManager = new TransactionImportProcessingLeaseManager(
-                transactionImportRepository,
-                LEASE_DURATION
-        );
+        leaseManager = new TransactionImportProcessingLeaseManager(transactionImportRepository,
+                LEASE_DURATION);
     }
 
     @Test
@@ -66,14 +64,12 @@ class TransactionImportProcessingLeaseManagerTest {
         when(transactionImportRepository.getCurrentDatabaseTime()).thenReturn(CLAIMED_AT);
         when(transactionImport.getStatus()).thenReturn(TransactionImportStatus.QUEUED);
         when(transactionImport.hasActiveProcessingLease(CLAIMED_AT)).thenReturn(false);
-        when(transactionImport.claimProcessingLease(
-                anyString(),
+        when(transactionImport.claimProcessingLease(anyString(),
                 eq(CLAIMED_AT),
-                eq(LEASE_EXPIRES_AT)
-        )).thenReturn(FENCING_TOKEN);
+                eq(LEASE_EXPIRES_AT)))
+                .thenReturn(FENCING_TOKEN);
 
-        TransactionImportProcessingLeaseAcquisition acquisition =
-                leaseManager.acquire(event());
+        TransactionImportProcessingLeaseAcquisition acquisition = leaseManager.acquire(event());
 
         assertThat(acquisition.getOutcome())
                 .isEqualTo(TransactionImportProcessingLeaseAcquisition.Outcome.ACQUIRED);
@@ -88,21 +84,17 @@ class TransactionImportProcessingLeaseManagerTest {
         assertThat(processingAttempt.getUserId()).isEqualTo(USER_ID);
         assertThat(processingAttempt.getFencingToken()).isEqualTo(FENCING_TOKEN);
 
-        ArgumentCaptor<String> processingOwnerCaptor =
-                ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> processingOwnerCaptor = ArgumentCaptor.forClass(String.class);
 
-        verify(transactionImport).claimProcessingLease(
-                processingOwnerCaptor.capture(),
+        verify(transactionImport).claimProcessingLease(processingOwnerCaptor.capture(),
                 eq(CLAIMED_AT),
-                eq(LEASE_EXPIRES_AT)
-        );
+                eq(LEASE_EXPIRES_AT));
 
         assertThat(processingAttempt.getProcessingOwner())
                 .isEqualTo(processingOwnerCaptor.getValue());
 
-        assertThatCode(() ->
-                UUID.fromString(processingOwnerCaptor.getValue())
-        ).doesNotThrowAnyException();
+        assertThatCode(() -> UUID.fromString(processingOwnerCaptor.getValue()))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -113,19 +105,16 @@ class TransactionImportProcessingLeaseManagerTest {
         when(transactionImport.getStatus()).thenReturn(TransactionImportStatus.RUNNING);
         when(transactionImport.hasActiveProcessingLease(CLAIMED_AT)).thenReturn(true);
 
-        TransactionImportProcessingLeaseAcquisition acquisition =
-                leaseManager.acquire(event());
+        TransactionImportProcessingLeaseAcquisition acquisition = leaseManager.acquire(event());
 
         assertThat(acquisition.getOutcome())
                 .isEqualTo(TransactionImportProcessingLeaseAcquisition.Outcome.ACTIVE_LEASE);
         assertThat(acquisition.getProcessingAttempt()).isNull();
         assertThat(acquisition.isAcquired()).isFalse();
 
-        verify(transactionImport, never()).claimProcessingLease(
-                anyString(),
+        verify(transactionImport, never()).claimProcessingLease(anyString(),
                 eq(CLAIMED_AT),
-                eq(LEASE_EXPIRES_AT)
-        );
+                eq(LEASE_EXPIRES_AT));
     }
 
     @Test
@@ -135,31 +124,25 @@ class TransactionImportProcessingLeaseManagerTest {
         when(transactionImportRepository.getCurrentDatabaseTime()).thenReturn(CLAIMED_AT);
         when(transactionImport.getStatus()).thenReturn(TransactionImportStatus.COMPLETED);
 
-        TransactionImportProcessingLeaseAcquisition acquisition =
-                leaseManager.acquire(event());
+        TransactionImportProcessingLeaseAcquisition acquisition = leaseManager.acquire(event());
 
         assertThat(acquisition.getOutcome())
-                .isEqualTo(
-                        TransactionImportProcessingLeaseAcquisition.Outcome.ALREADY_COMPLETED
-                );
+                .isEqualTo(TransactionImportProcessingLeaseAcquisition.Outcome.ALREADY_COMPLETED);
         assertThat(acquisition.getProcessingAttempt()).isNull();
         assertThat(acquisition.isAcquired()).isFalse();
 
         verify(transactionImport, never()).hasActiveProcessingLease(CLAIMED_AT);
-        verify(transactionImport, never()).claimProcessingLease(
-                anyString(),
+        verify(transactionImport, never()).claimProcessingLease(anyString(),
                 eq(CLAIMED_AT),
-                eq(LEASE_EXPIRES_AT)
-        );
+                eq(LEASE_EXPIRES_AT));
     }
 
     @Test
     void acquireThrowsWhenImportDoesNotMatchEventOwnership() {
-        when(transactionImportRepository.findByIdAndAccountIdAndUserIdForUpdate(
-                IMPORT_ID,
+        when(transactionImportRepository.findByIdAndAccountIdAndUserIdForUpdate(IMPORT_ID,
                 ACCOUNT_ID,
-                USER_ID
-        )).thenReturn(Optional.empty());
+                USER_ID))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> leaseManager.acquire(event()))
                 .isInstanceOf(TransactionImportNotFoundException.class)
@@ -170,17 +153,93 @@ class TransactionImportProcessingLeaseManagerTest {
     }
 
     @Test
+    void assertActiveSucceedsWhenCurrentLeaseMatches() {
+        when(transactionImportRepository.findActiveProcessingLeaseForUpdate(IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                PROCESSING_OWNER,
+                FENCING_TOKEN))
+                .thenReturn(Optional.of(transactionImport));
+
+        assertThatCode(() -> leaseManager.assertActive(IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                PROCESSING_OWNER,
+                FENCING_TOKEN))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void assertActiveThrowsWhenLeaseIsExpiredOrOwnershipHasChanged() {
+        when(transactionImportRepository.findActiveProcessingLeaseForUpdate(IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                PROCESSING_OWNER,
+                FENCING_TOKEN))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> leaseManager.assertActive(IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                PROCESSING_OWNER,
+                FENCING_TOKEN))
+                .isInstanceOf(TransactionImportProcessingLeaseLostException.class)
+                .hasMessage(
+                        "Transaction import processing lease is no longer active: "
+                                + "importId=41, processingOwner=worker-attempt-123, fencingToken=3"
+                );
+    }
+
+    @Test
+    void assertActiveRejectsInvalidImportIdBeforeQueryingDatabase() {
+        assertThatThrownBy(() -> leaseManager.assertActive(0L,
+                ACCOUNT_ID,
+                USER_ID,
+                PROCESSING_OWNER,
+                FENCING_TOKEN))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Import ID must be positive");
+
+        verifyNoInteractions(transactionImportRepository, transactionImport);
+    }
+
+    @Test
+    void assertActiveRejectsMissingProcessingOwnerBeforeQueryingDatabase() {
+        assertThatThrownBy(() -> leaseManager.assertActive(IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                null,
+                FENCING_TOKEN))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Processing owner is required");
+
+        verifyNoInteractions(transactionImportRepository, transactionImport);
+    }
+
+    @Test
+    void assertActiveRejectsInvalidFencingTokenBeforeQueryingDatabase() {
+        assertThatThrownBy(() -> leaseManager.assertActive(IMPORT_ID,
+                ACCOUNT_ID,
+                USER_ID,
+                PROCESSING_OWNER,
+                0L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Processing fencing token must be positive");
+
+        verifyNoInteractions(transactionImportRepository, transactionImport);
+    }
+
+    @Test
     void renewReturnsTrueWhenCurrentOwnershipMatches() {
         TransactionImportProcessingAttempt processingAttempt = processingAttempt();
 
-        when(transactionImportRepository.renewProcessingLease(
-                IMPORT_ID,
+        when(transactionImportRepository.renewProcessingLease(IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 PROCESSING_OWNER,
                 FENCING_TOKEN,
-                LEASE_DURATION.getSeconds()
-        )).thenReturn(1);
+                LEASE_DURATION.getSeconds()))
+                .thenReturn(1);
 
         assertThat(leaseManager.renew(processingAttempt)).isTrue();
     }
@@ -189,14 +248,13 @@ class TransactionImportProcessingLeaseManagerTest {
     void renewReturnsFalseWhenOwnershipHasChanged() {
         TransactionImportProcessingAttempt processingAttempt = processingAttempt();
 
-        when(transactionImportRepository.renewProcessingLease(
-                IMPORT_ID,
+        when(transactionImportRepository.renewProcessingLease(IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 PROCESSING_OWNER,
                 FENCING_TOKEN,
-                LEASE_DURATION.getSeconds()
-        )).thenReturn(0);
+                LEASE_DURATION.getSeconds()))
+                .thenReturn(0);
 
         assertThat(leaseManager.renew(processingAttempt)).isFalse();
     }
@@ -205,13 +263,12 @@ class TransactionImportProcessingLeaseManagerTest {
     void releaseReturnsTrueWhenCurrentOwnershipMatches() {
         TransactionImportProcessingAttempt processingAttempt = processingAttempt();
 
-        when(transactionImportRepository.releaseProcessingLease(
-                IMPORT_ID,
+        when(transactionImportRepository.releaseProcessingLease(IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 PROCESSING_OWNER,
-                FENCING_TOKEN
-        )).thenReturn(1);
+                FENCING_TOKEN))
+                .thenReturn(1);
 
         assertThat(leaseManager.release(processingAttempt)).isTrue();
     }
@@ -220,13 +277,12 @@ class TransactionImportProcessingLeaseManagerTest {
     void releaseReturnsFalseWhenOwnershipHasChanged() {
         TransactionImportProcessingAttempt processingAttempt = processingAttempt();
 
-        when(transactionImportRepository.releaseProcessingLease(
-                IMPORT_ID,
+        when(transactionImportRepository.releaseProcessingLease(IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 PROCESSING_OWNER,
-                FENCING_TOKEN
-        )).thenReturn(0);
+                FENCING_TOKEN))
+                .thenReturn(0);
 
         assertThat(leaseManager.release(processingAttempt)).isFalse();
     }
@@ -234,11 +290,8 @@ class TransactionImportProcessingLeaseManagerTest {
     @Test
     void constructorRejectsLeaseDurationShorterThanOneSecond() {
         assertThatThrownBy(() ->
-                new TransactionImportProcessingLeaseManager(
-                        transactionImportRepository,
-                        Duration.ofMillis(500)
-                )
-        )
+                new TransactionImportProcessingLeaseManager(transactionImportRepository,
+                        Duration.ofMillis(500)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Processing lease duration must be at least one second");
     }
@@ -261,34 +314,38 @@ class TransactionImportProcessingLeaseManagerTest {
         verifyNoInteractions(transactionImportRepository, transactionImport);
     }
 
+    @Test
+    void releaseRejectsMissingProcessingAttempt() {
+        assertThatThrownBy(() -> leaseManager.release(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Processing attempt is required");
+
+        verifyNoInteractions(transactionImportRepository, transactionImport);
+    }
+
     private void matchingImportExistsForUpdate() {
-        when(transactionImportRepository.findByIdAndAccountIdAndUserIdForUpdate(
-                IMPORT_ID,
+        when(transactionImportRepository.findByIdAndAccountIdAndUserIdForUpdate(IMPORT_ID,
                 ACCOUNT_ID,
-                USER_ID
-        )).thenReturn(Optional.of(transactionImport));
+                USER_ID))
+                .thenReturn(Optional.of(transactionImport));
     }
 
     private TransactionImportRequestedEvent event() {
-        return TransactionImportRequestedEvent.create(
-                EVENT_ID,
+        return TransactionImportRequestedEvent.create(EVENT_ID,
                 IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 "imports/9/import-uuid/source.csv",
                 "correlation-123",
-                Instant.parse("2026-08-14T11:59:00Z")
-        );
+                Instant.parse("2026-08-14T11:59:00Z"));
     }
 
     private TransactionImportProcessingAttempt processingAttempt() {
-        return new TransactionImportProcessingAttempt(
-                EVENT_ID,
+        return new TransactionImportProcessingAttempt(EVENT_ID,
                 IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 PROCESSING_OWNER,
-                FENCING_TOKEN
-        );
+                FENCING_TOKEN);
     }
 }

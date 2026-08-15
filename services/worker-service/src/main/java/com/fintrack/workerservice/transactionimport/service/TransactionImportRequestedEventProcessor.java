@@ -7,6 +7,7 @@ import com.fintrack.workerservice.transactionimport.batch.service.TransactionImp
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedOutputPreparationService;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedRowStagingService;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportJobProcessingException;
+import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.BatchStatus;
@@ -38,13 +39,24 @@ public class TransactionImportRequestedEventProcessor {
         this.rejectedRowStagingService = rejectedRowStagingService;
     }
 
-    public boolean process(TransactionImportRequestedEvent event) {
+    public boolean process(TransactionImportRequestedEvent event, TransactionImportProcessingAttempt processingAttempt) {
         Objects.requireNonNull(event, "Transaction import requested event is required");
+        Objects.requireNonNull(processingAttempt, "Transaction import processing attempt is required");
+
+        if (!processingAttempt.getEventId().equals(event.getEventId())
+                || !processingAttempt.getImportId().equals(event.getImportId())
+                || !processingAttempt.getAccountId().equals(event.getAccountId())
+                || !processingAttempt.getUserId().equals(event.getUserId())) {
+            throw new TransactionImportJobProcessingException(
+                    "Transaction import processing attempt does not match event: importId="
+                            + event.getImportId()
+            );
+        }
 
         try {
             jobLaunchService.recoverLastExecutionIfRunning(event);
 
-            JobExecution jobExecution = jobLaunchService.launch(event);
+            JobExecution jobExecution = jobLaunchService.launch(event, processingAttempt);
             return handleExecutionResult(event, jobExecution);
         } catch (JobInstanceAlreadyCompleteException exception) {
             return handleExistingTerminalJob(event, exception);

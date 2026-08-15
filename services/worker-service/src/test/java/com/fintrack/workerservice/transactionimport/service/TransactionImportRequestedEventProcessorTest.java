@@ -7,6 +7,7 @@ import com.fintrack.workerservice.transactionimport.batch.service.TransactionImp
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedOutputPreparationService;
 import com.fintrack.workerservice.transactionimport.batch.service.TransactionImportRejectedRowStagingService;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportJobProcessingException;
+import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,19 +37,21 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TransactionImportRequestedEventProcessorTest {
 
-    private static final UUID EVENT_ID =
-            UUID.fromString("8fb4e595-dbbc-4b7f-a791-8902bf5d93e1");
-
+    private static final UUID EVENT_ID = UUID.fromString("8fb4e595-dbbc-4b7f-a791-8902bf5d93e1");
     private static final Long IMPORT_ID = 41L;
     private static final Long ACCOUNT_ID = 22L;
     private static final Long USER_ID = 9L;
     private static final Long JOB_EXECUTION_ID = 81L;
+    private static final String SOURCE_OBJECT_KEY = "imports/9/import-uuid/source.csv";
+    private static final String REJECTED_OBJECT_KEY = "imports/9/import-uuid/rejected.csv";
 
-    private static final String SOURCE_OBJECT_KEY =
-            "imports/9/import-uuid/source.csv";
-
-    private static final String REJECTED_OBJECT_KEY =
-            "imports/9/import-uuid/rejected.csv";
+    private static final TransactionImportProcessingAttempt PROCESSING_ATTEMPT =
+            new TransactionImportProcessingAttempt(EVENT_ID,
+                    IMPORT_ID,
+                    ACCOUNT_ID,
+                    USER_ID,
+                    "worker-a",
+                    3L);
 
     @Mock
     private TransactionImportJobLaunchService jobLaunchService;
@@ -74,21 +77,15 @@ class TransactionImportRequestedEventProcessorTest {
         TransactionImportRejectedOutput rejectedOutput =
                 TransactionImportRejectedOutput.uploaded(2, REJECTED_OBJECT_KEY);
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(rejectedOutputPreparationService.prepareAndUpload(
-                IMPORT_ID,
-                SOURCE_OBJECT_KEY
-        )).thenReturn(rejectedOutput);
-        when(jobFinalizationService.complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        )).thenReturn(true);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(event, jobExecution, rejectedOutput)).thenReturn(true);
         when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(2);
 
-        boolean firstCompletion = eventProcessor.process(event);
+        boolean firstCompletion = eventProcessor.process(event, PROCESSING_ATTEMPT);
 
         assertThat(firstCompletion).isTrue();
 
@@ -98,73 +95,76 @@ class TransactionImportRequestedEventProcessorTest {
                 rejectedRowStagingService
         );
 
-        order.verify(rejectedOutputPreparationService)
-                .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        order.verify(jobFinalizationService)
-                .complete(event, jobExecution, rejectedOutput);
+        order.verify(rejectedOutputPreparationService).prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
+        order.verify(jobFinalizationService).complete(event, jobExecution, rejectedOutput);
         order.verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
+    }
+
+    @Test
+    void processRecoversRunningExecutionBeforeLaunchingReplacement() throws Exception {
+        TransactionImportRequestedEvent event = event();
+        TransactionImportRejectedOutput rejectedOutput = TransactionImportRejectedOutput.none();
+
+        when(jobLaunchService.recoverLastExecutionIfRunning(event)).thenReturn(true);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
+        when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
+        when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(event, jobExecution, rejectedOutput)).thenReturn(true);
+        when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(0);
+
+        boolean firstCompletion = eventProcessor.process(event, PROCESSING_ATTEMPT);
+
+        assertThat(firstCompletion).isTrue();
+
+        InOrder order = inOrder(jobLaunchService);
+
+        order.verify(jobLaunchService).recoverLastExecutionIfRunning(event);
+        order.verify(jobLaunchService).launch(event, PROCESSING_ATTEMPT);
     }
 
     @Test
     void processCompletesExecutionWithoutRejectedRowsAndRunsIdempotentCleanup() throws Exception {
         TransactionImportRequestedEvent event = event();
-        TransactionImportRejectedOutput rejectedOutput =
-                TransactionImportRejectedOutput.none();
+        TransactionImportRejectedOutput rejectedOutput = TransactionImportRejectedOutput.none();
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(rejectedOutputPreparationService.prepareAndUpload(
-                IMPORT_ID,
-                SOURCE_OBJECT_KEY
-        )).thenReturn(rejectedOutput);
-        when(jobFinalizationService.complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        )).thenReturn(true);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(event, jobExecution, rejectedOutput)).thenReturn(true);
         when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(0);
 
-        boolean firstCompletion = eventProcessor.process(event);
+        boolean firstCompletion = eventProcessor.process(event, PROCESSING_ATTEMPT);
 
         assertThat(firstCompletion).isTrue();
 
-        verify(rejectedOutputPreparationService)
-                .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        verify(jobFinalizationService)
-                .complete(event, jobExecution, rejectedOutput);
+        verify(rejectedOutputPreparationService).prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
+        verify(jobFinalizationService).complete(event, jobExecution, rejectedOutput);
         verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
     @Test
-    void processReturnsFalseAndRetriesCleanupWhenCompletionWasAlreadyFinalized()
-            throws Exception {
+    void processReturnsFalseAndRetriesCleanupWhenCompletionWasAlreadyFinalized() throws Exception {
         TransactionImportRequestedEvent event = event();
-        TransactionImportRejectedOutput rejectedOutput =
-                TransactionImportRejectedOutput.none();
+        TransactionImportRejectedOutput rejectedOutput = TransactionImportRejectedOutput.none();
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(rejectedOutputPreparationService.prepareAndUpload(
-                IMPORT_ID,
-                SOURCE_OBJECT_KEY
-        )).thenReturn(rejectedOutput);
-        when(jobFinalizationService.complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        )).thenReturn(false);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(event, jobExecution, rejectedOutput)).thenReturn(false);
         when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(2);
 
-        boolean firstCompletion = eventProcessor.process(event);
+        boolean firstCompletion = eventProcessor.process(event, PROCESSING_ATTEMPT);
 
         assertThat(firstCompletion).isFalse();
 
-        verify(rejectedOutputPreparationService)
-                .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        verify(jobFinalizationService)
-                .complete(event, jobExecution, rejectedOutput);
+        verify(rejectedOutputPreparationService).prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
+        verify(jobFinalizationService).complete(event, jobExecution, rejectedOutput);
         verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
@@ -177,56 +177,41 @@ class TransactionImportRequestedEventProcessorTest {
         JobInstanceAlreadyCompleteException cause =
                 new JobInstanceAlreadyCompleteException("Job instance already completed");
 
-        when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenThrow(cause);
         when(jobLaunchService.findLastExecution(event)).thenReturn(Optional.of(jobExecution));
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(rejectedOutputPreparationService.prepareAndUpload(
-                IMPORT_ID,
-                SOURCE_OBJECT_KEY
-        )).thenReturn(rejectedOutput);
-        when(jobFinalizationService.complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        )).thenReturn(true);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(event, jobExecution, rejectedOutput)).thenReturn(true);
         when(rejectedRowStagingService.deleteAll(IMPORT_ID)).thenReturn(2);
 
-        boolean firstCompletion = eventProcessor.process(event);
+        boolean firstCompletion = eventProcessor.process(event, PROCESSING_ATTEMPT);
 
         assertThat(firstCompletion).isTrue();
 
-        verify(jobLaunchService).launch(event);
+        verify(jobLaunchService).launch(event, PROCESSING_ATTEMPT);
         verify(jobLaunchService).findLastExecution(event);
-        verify(rejectedOutputPreparationService)
-                .prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
-        verify(jobFinalizationService)
-                .complete(event, jobExecution, rejectedOutput);
+        verify(rejectedOutputPreparationService).prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY);
+        verify(jobFinalizationService).complete(event, jobExecution, rejectedOutput);
         verify(rejectedRowStagingService).deleteAll(IMPORT_ID);
     }
 
     @Test
-    void processDoesNotFinalizeOrCleanupWhenRejectedOutputUploadFails()
-            throws Exception {
+    void processDoesNotFinalizeOrCleanupWhenRejectedOutputUploadFails() throws Exception {
         TransactionImportRequestedEvent event = event();
-
         IllegalStateException uploadFailure =
                 new IllegalStateException("S3 rejected-output upload failed");
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
-        when(rejectedOutputPreparationService.prepareAndUpload(
-                IMPORT_ID,
-                SOURCE_OBJECT_KEY
-        )).thenThrow(uploadFailure);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenThrow(uploadFailure);
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isSameAs(uploadFailure);
 
-        verifyNoInteractions(
-                jobFinalizationService,
-                rejectedRowStagingService
-        );
+        verifyNoInteractions(jobFinalizationService, rejectedRowStagingService);
     }
 
     @Test
@@ -238,19 +223,14 @@ class TransactionImportRequestedEventProcessorTest {
         IllegalStateException finalizationFailure =
                 new IllegalStateException("Database finalization failed");
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
-        when(rejectedOutputPreparationService.prepareAndUpload(
-                IMPORT_ID,
-                SOURCE_OBJECT_KEY
-        )).thenReturn(rejectedOutput);
-        when(jobFinalizationService.complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        )).thenThrow(finalizationFailure);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(event, jobExecution, rejectedOutput))
+                .thenThrow(finalizationFailure);
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isSameAs(finalizationFailure);
 
         verifyNoInteractions(rejectedRowStagingService);
@@ -262,22 +242,16 @@ class TransactionImportRequestedEventProcessorTest {
         TransactionImportRejectedOutput rejectedOutput =
                 TransactionImportRejectedOutput.uploaded(2, REJECTED_OBJECT_KEY);
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
-        when(rejectedOutputPreparationService.prepareAndUpload(
-                IMPORT_ID,
-                SOURCE_OBJECT_KEY
-        )).thenReturn(rejectedOutput);
-        when(jobFinalizationService.complete(
-                event,
-                jobExecution,
-                rejectedOutput
-        )).thenReturn(true);
+        when(rejectedOutputPreparationService.prepareAndUpload(IMPORT_ID, SOURCE_OBJECT_KEY))
+                .thenReturn(rejectedOutput);
+        when(jobFinalizationService.complete(event, jobExecution, rejectedOutput)).thenReturn(true);
         when(rejectedRowStagingService.deleteAll(IMPORT_ID))
                 .thenThrow(new IllegalStateException("Cleanup database failure"));
 
-        boolean firstCompletion = eventProcessor.process(event);
+        boolean firstCompletion = eventProcessor.process(event, PROCESSING_ATTEMPT);
 
         assertThat(firstCompletion).isTrue();
 
@@ -294,26 +268,19 @@ class TransactionImportRequestedEventProcessorTest {
         String expectedSummary =
                 "Transaction import job execution 81 finished with status ABANDONED";
 
-        when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenThrow(cause);
         when(jobLaunchService.findLastExecution(event)).thenReturn(Optional.of(jobExecution));
         when(jobExecution.getStatus()).thenReturn(BatchStatus.ABANDONED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
         when(jobExecution.getAllFailureExceptions()).thenReturn(List.of());
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage(expectedSummary);
 
         verify(jobLaunchService).findLastExecution(event);
-        verify(jobFinalizationService).fail(
-                event,
-                jobExecution,
-                expectedSummary
-        );
-        verifyNoInteractions(
-                rejectedOutputPreparationService,
-                rejectedRowStagingService
-        );
+        verify(jobFinalizationService).fail(event, jobExecution, expectedSummary);
+        verifyNoInteractions(rejectedOutputPreparationService, rejectedRowStagingService);
     }
 
     @Test
@@ -323,10 +290,10 @@ class TransactionImportRequestedEventProcessorTest {
         JobInstanceAlreadyCompleteException cause =
                 new JobInstanceAlreadyCompleteException("Job instance already completed");
 
-        when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenThrow(cause);
         when(jobLaunchService.findLastExecution(event)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage(
                         "Spring Batch reported an existing terminal job instance but no execution metadata was found for import 41"
@@ -348,9 +315,9 @@ class TransactionImportRequestedEventProcessorTest {
         JobExecutionAlreadyRunningException cause =
                 new JobExecutionAlreadyRunningException("Job execution is already running");
 
-        when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenThrow(cause);
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage("Transaction import job is already running for import 41")
                 .hasCause(cause);
@@ -365,12 +332,11 @@ class TransactionImportRequestedEventProcessorTest {
     @Test
     void processWrapsOtherJobLaunchFailures() throws Exception {
         TransactionImportRequestedEvent event = event();
-        JobRestartException cause =
-                new JobRestartException("Job could not be restarted");
+        JobRestartException cause = new JobRestartException("Job could not be restarted");
 
-        when(jobLaunchService.launch(event)).thenThrow(cause);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenThrow(cause);
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage("Failed to launch transaction import job for import 41")
                 .hasCause(cause);
@@ -389,72 +355,50 @@ class TransactionImportRequestedEventProcessorTest {
         String expectedSummary =
                 "Transaction import job execution 81 finished with status FAILED: Database unavailable";
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(BatchStatus.FAILED);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
         when(jobExecution.getAllFailureExceptions())
                 .thenReturn(List.of(new IllegalStateException("Database unavailable")));
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage(expectedSummary);
 
-        verify(jobFinalizationService).fail(
-                event,
-                jobExecution,
-                expectedSummary
-        );
-        verifyNoInteractions(
-                rejectedOutputPreparationService,
-                rejectedRowStagingService
-        );
+        verify(jobFinalizationService).fail(event, jobExecution, expectedSummary);
+        verifyNoInteractions(rejectedOutputPreparationService, rejectedRowStagingService);
     }
 
     @ParameterizedTest
-    @EnumSource(
-            value = BatchStatus.class,
-            names = {"STOPPED", "ABANDONED", "UNKNOWN"}
-    )
-    void processMarksOtherUnsuccessfulTerminalStatusesAsFailed(BatchStatus status)
-            throws Exception {
+    @EnumSource(value = BatchStatus.class, names = {"STOPPED", "ABANDONED", "UNKNOWN"})
+    void processMarksOtherUnsuccessfulTerminalStatusesAsFailed(BatchStatus status) throws Exception {
         TransactionImportRequestedEvent event = event();
-
         String expectedSummary =
                 "Transaction import job execution 81 finished with status " + status;
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(status);
         when(jobExecution.getId()).thenReturn(JOB_EXECUTION_ID);
         when(jobExecution.getAllFailureExceptions()).thenReturn(List.of());
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage(expectedSummary);
 
-        verify(jobFinalizationService).fail(
-                event,
-                jobExecution,
-                expectedSummary
-        );
-        verifyNoInteractions(
-                rejectedOutputPreparationService,
-                rejectedRowStagingService
-        );
+        verify(jobFinalizationService).fail(event, jobExecution, expectedSummary);
+        verifyNoInteractions(rejectedOutputPreparationService, rejectedRowStagingService);
     }
 
     @ParameterizedTest
-    @EnumSource(
-            value = BatchStatus.class,
-            names = {"STARTING", "STARTED", "STOPPING"}
-    )
+    @EnumSource(value = BatchStatus.class, names = {"STARTING", "STARTED", "STOPPING"})
     void processRejectsNonTerminalExecutionWithoutMarkingImportFailed(BatchStatus status)
             throws Exception {
         TransactionImportRequestedEvent event = event();
 
-        when(jobLaunchService.launch(event)).thenReturn(jobExecution);
+        when(jobLaunchService.launch(event, PROCESSING_ATTEMPT)).thenReturn(jobExecution);
         when(jobExecution.getStatus()).thenReturn(status);
 
-        assertThatThrownBy(() -> eventProcessor.process(event))
+        assertThatThrownBy(() -> eventProcessor.process(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportJobProcessingException.class)
                 .hasMessage(
                         "Transaction import job returned before reaching a terminal status for import 41: "
@@ -470,7 +414,7 @@ class TransactionImportRequestedEventProcessorTest {
 
     @Test
     void processRejectsNullEventBeforeUsingDependencies() {
-        assertThatThrownBy(() -> eventProcessor.process(null))
+        assertThatThrownBy(() -> eventProcessor.process(null, PROCESSING_ATTEMPT))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
 
@@ -482,15 +426,53 @@ class TransactionImportRequestedEventProcessorTest {
         );
     }
 
+    @Test
+    void processRejectsNullProcessingAttemptBeforeUsingDependencies() {
+        TransactionImportRequestedEvent event = event();
+
+        assertThatThrownBy(() -> eventProcessor.process(event, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Transaction import processing attempt is required");
+
+        verifyNoInteractions(
+                jobLaunchService,
+                rejectedOutputPreparationService,
+                jobFinalizationService,
+                rejectedRowStagingService
+        );
+    }
+
+    @Test
+    void processRejectsProcessingAttemptThatDoesNotMatchEvent() {
+        TransactionImportRequestedEvent event = event();
+
+        TransactionImportProcessingAttempt mismatchedAttempt =
+                new TransactionImportProcessingAttempt(EVENT_ID,
+                        99L,
+                        ACCOUNT_ID,
+                        USER_ID,
+                        "worker-b",
+                        4L);
+
+        assertThatThrownBy(() -> eventProcessor.process(event, mismatchedAttempt))
+                .isInstanceOf(TransactionImportJobProcessingException.class)
+                .hasMessage("Transaction import processing attempt does not match event: importId=41");
+
+        verifyNoInteractions(
+                jobLaunchService,
+                rejectedOutputPreparationService,
+                jobFinalizationService,
+                rejectedRowStagingService
+        );
+    }
+
     private TransactionImportRequestedEvent event() {
-        return TransactionImportRequestedEvent.create(
-                EVENT_ID,
+        return TransactionImportRequestedEvent.create(EVENT_ID,
                 IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 SOURCE_OBJECT_KEY,
                 "correlation-123",
-                Instant.parse("2026-08-12T12:00:00Z")
-        );
+                Instant.parse("2026-08-12T12:00:00Z"));
     }
 }

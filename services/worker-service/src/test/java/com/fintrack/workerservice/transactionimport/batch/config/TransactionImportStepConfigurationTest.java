@@ -5,7 +5,9 @@ import com.fintrack.workerservice.transactionimport.batch.listener.TransactionIm
 import com.fintrack.workerservice.transactionimport.batch.model.TransactionImportCsvRow;
 import com.fintrack.workerservice.transactionimport.batch.model.ValidatedTransactionImportRow;
 import com.fintrack.workerservice.transactionimport.batch.processor.TransactionImportItemProcessor;
+import com.fintrack.workerservice.transactionimport.batch.stream.TransactionImportChunkCommitFence;
 import com.fintrack.workerservice.transactionimport.batch.writer.TransactionImportItemWriter;
+import com.fintrack.workerservice.transactionimport.exception.TransactionImportProcessingLeaseLostException;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportRowValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,7 @@ import org.springframework.batch.core.repository.support.ResourcelessJobReposito
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.infrastructure.item.Chunk;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.FlatFileParseException;
 import org.springframework.batch.infrastructure.support.transaction.ResourcelessTransactionManager;
@@ -30,7 +33,10 @@ import java.time.LocalDate;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,14 +54,16 @@ class TransactionImportStepConfigurationTest {
     private TransactionImportItemWriter transactionImportItemWriter;
 
     @Mock
+    private TransactionImportChunkCommitFence transactionImportChunkCommitFence;
+
+    @Mock
     private TransactionImportSkipListener transactionImportSkipListener;
 
     private Step transactionImportStep;
 
     @BeforeEach
     void setUp() {
-        TransactionImportStepConfiguration configuration =
-                new TransactionImportStepConfiguration();
+        TransactionImportStepConfiguration configuration = new TransactionImportStepConfiguration();
 
         transactionImportStep = configuration.transactionImportStep(
                 new ResourcelessJobRepository(),
@@ -63,6 +71,7 @@ class TransactionImportStepConfigurationTest {
                 transactionImportCsvReader,
                 transactionImportItemProcessor,
                 transactionImportItemWriter,
+                transactionImportChunkCommitFence,
                 transactionImportSkipListener
         );
     }
@@ -78,19 +87,12 @@ class TransactionImportStepConfigurationTest {
         ValidatedTransactionImportRow thirdValidatedRow = validatedRow(4);
 
         TransactionImportRowValidationException validationException =
-                new TransactionImportRowValidationException(
-                        3,
-                        "amount must be valid"
-                );
+                new TransactionImportRowValidationException(3, "amount must be valid");
 
-        when(transactionImportCsvReader.read())
-                .thenReturn(firstRow, invalidRow, thirdRow, null);
-        when(transactionImportItemProcessor.process(firstRow))
-                .thenReturn(firstValidatedRow);
-        when(transactionImportItemProcessor.process(invalidRow))
-                .thenThrow(validationException);
-        when(transactionImportItemProcessor.process(thirdRow))
-                .thenReturn(thirdValidatedRow);
+        when(transactionImportCsvReader.read()).thenReturn(firstRow, invalidRow, thirdRow, null);
+        when(transactionImportItemProcessor.process(firstRow)).thenReturn(firstValidatedRow);
+        when(transactionImportItemProcessor.process(invalidRow)).thenThrow(validationException);
+        when(transactionImportItemProcessor.process(thirdRow)).thenReturn(thirdValidatedRow);
 
         StepExecution stepExecution = stepExecution();
 
@@ -105,8 +107,9 @@ class TransactionImportStepConfigurationTest {
         ArgumentCaptor<Chunk> chunkCaptor = ArgumentCaptor.forClass(Chunk.class);
 
         verify(transactionImportItemWriter).write(chunkCaptor.capture());
-        verify(transactionImportSkipListener)
-                .onSkipInProcess(invalidRow, validationException);
+        verify(transactionImportSkipListener).onSkipInProcess(invalidRow, validationException);
+        verify(transactionImportChunkCommitFence, atLeastOnce())
+                .update(any(ExecutionContext.class));
 
         assertThat(chunkCaptor.getValue().getItems())
                 .containsExactly(firstValidatedRow, thirdValidatedRow);
@@ -117,20 +120,14 @@ class TransactionImportStepConfigurationTest {
     void stepSkipsMalformedCsvRecordAndWritesValidRow() throws Exception {
         String malformedRecord = "2026-08-10,EXPENSE,12.50,STARBUCKS";
 
-        FlatFileParseException parseException = new FlatFileParseException(
-                "Failed to parse CSV record",
-                malformedRecord,
-                2
-        );
+        FlatFileParseException parseException =
+                new FlatFileParseException("Failed to parse CSV record", malformedRecord, 2);
 
         TransactionImportCsvRow validRow = csvRow(3);
         ValidatedTransactionImportRow validatedRow = validatedRow(3);
 
-        when(transactionImportCsvReader.read())
-                .thenThrow(parseException)
-                .thenReturn(validRow, null);
-        when(transactionImportItemProcessor.process(validRow))
-                .thenReturn(validatedRow);
+        when(transactionImportCsvReader.read()).thenThrow(parseException).thenReturn(validRow, null);
+        when(transactionImportItemProcessor.process(validRow)).thenReturn(validatedRow);
 
         StepExecution stepExecution = stepExecution();
 
@@ -146,9 +143,10 @@ class TransactionImportStepConfigurationTest {
 
         verify(transactionImportItemWriter).write(chunkCaptor.capture());
         verify(transactionImportSkipListener).onSkipInRead(parseException);
+        verify(transactionImportChunkCommitFence, atLeastOnce())
+                .update(any(ExecutionContext.class));
 
-        assertThat(chunkCaptor.getValue().getItems())
-                .containsExactly(validatedRow);
+        assertThat(chunkCaptor.getValue().getItems()).containsExactly(validatedRow);
     }
 
     @Test
@@ -184,8 +182,7 @@ class TransactionImportStepConfigurationTest {
         assertThat(stepExecution.getProcessSkipCount()).isEqualTo(100);
         assertThat(stepExecution.getWriteCount()).isZero();
 
-        verify(transactionImportItemWriter, never())
-                .write(argThat(chunk -> !chunk.isEmpty()));
+        verify(transactionImportItemWriter, never()).write(argThat(chunk -> !chunk.isEmpty()));
     }
 
     @Test
@@ -204,51 +201,71 @@ class TransactionImportStepConfigurationTest {
         assertThat(stepExecution.getSkipCount()).isZero();
         assertThat(stepExecution.getWriteCount()).isZero();
 
-        verify(transactionImportItemWriter, never())
-                .write(argThat(chunk -> !chunk.isEmpty()));
+        verify(transactionImportItemWriter, never()).write(argThat(chunk -> !chunk.isEmpty()));
         verify(transactionImportSkipListener, never())
-                .onSkipInProcess(
-                        org.mockito.ArgumentMatchers.any(),
-                        org.mockito.ArgumentMatchers.any()
+                .onSkipInProcess(org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void stepFailsWhenProcessingOwnershipIsLostBeforeCommit() throws Exception {
+        TransactionImportCsvRow row = csvRow(2);
+        ValidatedTransactionImportRow validatedRow = validatedRow(2);
+
+        TransactionImportProcessingLeaseLostException leaseLostException =
+                new TransactionImportProcessingLeaseLostException(
+                        41L,
+                        "worker-attempt-123",
+                        3L
                 );
+
+        when(transactionImportCsvReader.read()).thenReturn(row, null);
+        when(transactionImportItemProcessor.process(row)).thenReturn(validatedRow);
+
+        doThrow(leaseLostException)
+                .when(transactionImportChunkCommitFence)
+                .update(any(ExecutionContext.class));
+
+        StepExecution stepExecution = stepExecution();
+
+        transactionImportStep.execute(stepExecution);
+
+        assertThat(stepExecution.getStatus()).isEqualTo(BatchStatus.FAILED);
+        assertThat(stepExecution.getExitStatus().getExitDescription())
+                .contains("Transaction import processing lease is no longer active");
+
+        verify(transactionImportItemWriter, atLeastOnce())
+                .write(argThat(chunk -> !chunk.isEmpty()));
+        verify(transactionImportChunkCommitFence, atLeastOnce())
+                .update(any(ExecutionContext.class));
     }
 
     private StepExecution stepExecution() {
         JobInstance jobInstance = new JobInstance(1L, "transactionImportJob");
-        JobExecution jobExecution =
-                new JobExecution(1L, jobInstance, new JobParameters());
+        JobExecution jobExecution = new JobExecution(1L, jobInstance, new JobParameters());
 
-        return new StepExecution(
-                1L,
-                "transactionImportStep",
-                jobExecution
-        );
+        return new StepExecution(1L, "transactionImportStep", jobExecution);
     }
 
     private TransactionImportCsvRow csvRow(int rowNumber) {
-        String rawRecord =
-                "2026-08-10,EXPENSE,12.50,STARBUCKS,Coffee";
+        String rawRecord = "2026-08-10,EXPENSE,12.50,STARBUCKS,Coffee";
 
-        return new TransactionImportCsvRow(
-                rowNumber,
+        return new TransactionImportCsvRow(rowNumber,
                 "2026-08-10",
                 "EXPENSE",
                 "12.50",
                 "STARBUCKS",
                 "Coffee",
-                rawRecord
-        );
+                rawRecord);
     }
 
     private ValidatedTransactionImportRow validatedRow(int rowNumber) {
-        return new ValidatedTransactionImportRow(
-                rowNumber,
+        return new ValidatedTransactionImportRow(rowNumber,
                 LocalDate.of(2026, 8, 10),
                 TransactionType.EXPENSE,
                 new BigDecimal("12.50"),
                 "STARBUCKS",
                 "Coffee",
-                4L
-        );
+                4L);
     }
 }

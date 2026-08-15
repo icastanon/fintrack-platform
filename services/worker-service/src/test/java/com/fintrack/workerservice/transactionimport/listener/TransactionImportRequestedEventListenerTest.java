@@ -77,7 +77,7 @@ class TransactionImportRequestedEventListenerTest {
         when(processingLeaseManager.acquire(event))
                 .thenReturn(TransactionImportProcessingLeaseAcquisition.acquired(PROCESSING_ATTEMPT));
         when(messageVisibilityHeartbeat.start(visibility, PROCESSING_ATTEMPT)).thenReturn(runningHeartbeat);
-        when(eventProcessor.process(event)).thenReturn(true);
+        when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenReturn(true);
         when(runningHeartbeat.hasLostProcessingLease()).thenReturn(false);
 
         assertThatCode(() -> listener.handle(event, visibility)).doesNotThrowAnyException();
@@ -91,7 +91,7 @@ class TransactionImportRequestedEventListenerTest {
 
         order.verify(processingLeaseManager).acquire(event);
         order.verify(messageVisibilityHeartbeat).start(visibility, PROCESSING_ATTEMPT);
-        order.verify(eventProcessor).process(event);
+        order.verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
         order.verify(runningHeartbeat).hasLostProcessingLease();
         order.verify(runningHeartbeat).close();
 
@@ -105,12 +105,12 @@ class TransactionImportRequestedEventListenerTest {
         when(processingLeaseManager.acquire(event))
                 .thenReturn(TransactionImportProcessingLeaseAcquisition.acquired(PROCESSING_ATTEMPT));
         when(messageVisibilityHeartbeat.start(visibility, PROCESSING_ATTEMPT)).thenReturn(runningHeartbeat);
-        when(eventProcessor.process(event)).thenReturn(false);
+        when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenReturn(false);
         when(runningHeartbeat.hasLostProcessingLease()).thenReturn(false);
 
         assertThatCode(() -> listener.handle(event, visibility)).doesNotThrowAnyException();
 
-        verify(eventProcessor).process(event);
+        verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
         verify(runningHeartbeat).close();
 
         assertThat(MDC.get("correlationId")).isNull();
@@ -185,7 +185,7 @@ class TransactionImportRequestedEventListenerTest {
         when(processingLeaseManager.acquire(event))
                 .thenReturn(TransactionImportProcessingLeaseAcquisition.acquired(PROCESSING_ATTEMPT));
         when(messageVisibilityHeartbeat.start(visibility, PROCESSING_ATTEMPT)).thenReturn(runningHeartbeat);
-        when(eventProcessor.process(event)).thenThrow(cause);
+        when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenThrow(cause);
 
         assertThatThrownBy(() -> listener.handle(event, visibility)).isSameAs(cause);
 
@@ -198,7 +198,7 @@ class TransactionImportRequestedEventListenerTest {
 
         order.verify(processingLeaseManager).acquire(event);
         order.verify(messageVisibilityHeartbeat).start(visibility, PROCESSING_ATTEMPT);
-        order.verify(eventProcessor).process(event);
+        order.verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
         order.verify(runningHeartbeat).close();
 
         assertThat(MDC.get("correlationId")).isNull();
@@ -229,7 +229,7 @@ class TransactionImportRequestedEventListenerTest {
         when(processingLeaseManager.acquire(event))
                 .thenReturn(TransactionImportProcessingLeaseAcquisition.acquired(PROCESSING_ATTEMPT));
         when(messageVisibilityHeartbeat.start(visibility, PROCESSING_ATTEMPT)).thenReturn(runningHeartbeat);
-        when(eventProcessor.process(event)).thenReturn(true);
+        when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenReturn(true);
         when(runningHeartbeat.hasLostProcessingLease()).thenReturn(true);
 
         assertThatThrownBy(() -> listener.handle(event, visibility))
@@ -238,7 +238,7 @@ class TransactionImportRequestedEventListenerTest {
 
         InOrder order = inOrder(eventProcessor, runningHeartbeat);
 
-        order.verify(eventProcessor).process(event);
+        order.verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
         order.verify(runningHeartbeat).hasLostProcessingLease();
         order.verify(runningHeartbeat).close();
 

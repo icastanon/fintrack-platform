@@ -3,6 +3,7 @@ package com.fintrack.workerservice.transactionimport.batch.service;
 import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.transactionimport.entity.TransactionImport;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportRequestMismatchException;
+import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
 import com.fintrack.workerservice.transactionimport.service.TransactionImportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +41,13 @@ public class TransactionImportJobLaunchService {
         this.transactionImportService = transactionImportService;
     }
 
-    public JobExecution launch(TransactionImportRequestedEvent event) throws JobExecutionException {
-        JobParameters jobParameters = buildVerifiedJobParameters(event);
+    public JobExecution launch(TransactionImportRequestedEvent event, TransactionImportProcessingAttempt processingAttempt)
+            throws JobExecutionException {
+        Objects.requireNonNull(processingAttempt, "Transaction import processing attempt is required");
+
+        TransactionImport transactionImport = getVerifiedImport(event);
+        JobParameters jobParameters = buildLaunchJobParameters(event, transactionImport, processingAttempt);
+
         return jobOperator.start(transactionImportJob, jobParameters);
     }
 
@@ -72,13 +78,16 @@ public class TransactionImportJobLaunchService {
     }
 
     public Optional<JobExecution> findLastExecution(TransactionImportRequestedEvent event) {
-        JobParameters jobParameters = buildVerifiedJobParameters(event);
-        JobExecution jobExecution = jobRepository.getLastJobExecution(transactionImportJob.getName(), jobParameters);
+        TransactionImport transactionImport = getVerifiedImport(event);
+        JobParameters jobParameters = buildLookupJobParameters(event, transactionImport);
+
+        JobExecution jobExecution =
+                jobRepository.getLastJobExecution(transactionImportJob.getName(), jobParameters);
 
         return Optional.ofNullable(jobExecution);
     }
 
-    private JobParameters buildVerifiedJobParameters(TransactionImportRequestedEvent event) {
+    private TransactionImport getVerifiedImport(TransactionImportRequestedEvent event) {
         Objects.requireNonNull(event, "Transaction import requested event is required");
 
         TransactionImport transactionImport = transactionImportService.getRequestedImport(
@@ -89,16 +98,35 @@ public class TransactionImportJobLaunchService {
 
         validateSourceObjectKey(event, transactionImport);
 
+        return transactionImport;
+    }
+
+    private JobParameters buildLaunchJobParameters(TransactionImportRequestedEvent event,
+                                                   TransactionImport transactionImport,
+                                                   TransactionImportProcessingAttempt processingAttempt) {
+        return baseJobParameters(event, transactionImport)
+                .addString("processingOwner", processingAttempt.getProcessingOwner(), false)
+                .addLong("processingFencingToken", processingAttempt.getFencingToken(), false)
+                .toJobParameters();
+    }
+
+    private JobParameters buildLookupJobParameters(TransactionImportRequestedEvent event, TransactionImport transactionImport) {
+        return baseJobParameters(event, transactionImport).toJobParameters();
+    }
+
+    private JobParametersBuilder baseJobParameters(
+            TransactionImportRequestedEvent event,
+            TransactionImport transactionImport) {
         return new JobParametersBuilder()
                 .addLong("importId", transactionImport.getId(), true)
                 .addLong("accountId", transactionImport.getAccountId(), false)
                 .addLong("userId", event.getUserId(), false)
-                .addString("sourceObjectKey", transactionImport.getSourceObjectKey(), false)
-                .toJobParameters();
+                .addString("sourceObjectKey", transactionImport.getSourceObjectKey(), false);
     }
 
-    private void validateSourceObjectKey(TransactionImportRequestedEvent event,
-                                         TransactionImport transactionImport) {
+    private void validateSourceObjectKey(
+            TransactionImportRequestedEvent event,
+            TransactionImport transactionImport) {
         if (!transactionImport.getSourceObjectKey().equals(event.getSourceObjectKey())) {
             throw new TransactionImportRequestMismatchException(transactionImport.getId());
         }

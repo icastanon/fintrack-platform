@@ -69,7 +69,7 @@ public class TransactionImportRequestedEventListener {
                                        TransactionImportProcessingAttempt processingAttempt) {
         try (TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat =
                      messageVisibilityHeartbeat.start(visibility, processingAttempt)) {
-            boolean firstCompletion = eventProcessor.process(event);
+            boolean firstCompletion = eventProcessor.process(event, processingAttempt);
 
             if (runningHeartbeat.hasLostProcessingLease()) {
                 throw new TransactionImportJobProcessingException(

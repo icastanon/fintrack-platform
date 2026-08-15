@@ -15,11 +15,14 @@ public class TransactionImportJobParametersValidator implements JobParametersVal
     private static final String ACCOUNT_ID = "accountId";
     private static final String USER_ID = "userId";
     private static final String SOURCE_OBJECT_KEY = "sourceObjectKey";
+    private static final String PROCESSING_OWNER = "processingOwner";
+    private static final String PROCESSING_FENCING_TOKEN = "processingFencingToken";
 
     private static final Set<String> EXPECTED_PARAMETER_NAMES =
-            Set.of(IMPORT_ID, ACCOUNT_ID, USER_ID, SOURCE_OBJECT_KEY);
+            Set.of(IMPORT_ID, ACCOUNT_ID, USER_ID, SOURCE_OBJECT_KEY, PROCESSING_OWNER, PROCESSING_FENCING_TOKEN);
 
     private static final int MAXIMUM_OBJECT_KEY_LENGTH = 1024;
+    private static final int MAXIMUM_PROCESSING_OWNER_LENGTH = 100;
 
     @Override
     public void validate(JobParameters parameters) throws InvalidJobParametersException {
@@ -33,19 +36,22 @@ public class TransactionImportJobParametersValidator implements JobParametersVal
         requirePositiveLong(parameters, ACCOUNT_ID, false);
         requirePositiveLong(parameters, USER_ID, false);
         requireSourceObjectKey(parameters);
+        requireProcessingOwner(parameters);
+        requirePositiveLong(parameters, PROCESSING_FENCING_TOKEN, false);
     }
 
     private void rejectUnexpectedParameters(JobParameters parameters) throws InvalidJobParametersException {
         for (JobParameter<?> parameter : parameters) {
             if (!EXPECTED_PARAMETER_NAMES.contains(parameter.name())) {
                 throw new InvalidJobParametersException(
-                        "Unexpected transaction import job parameter: " + parameter.name());
+                        "Unexpected transaction import job parameter: " + parameter.name()
+                );
             }
         }
     }
 
     private void requirePositiveLong(JobParameters parameters, String parameterName,
-                                     boolean identifying) throws InvalidJobParametersException {
+            boolean identifying) throws InvalidJobParametersException {
         JobParameter<?> parameter = parameters.getParameter(parameterName);
 
         if (parameter == null
@@ -68,10 +74,28 @@ public class TransactionImportJobParametersValidator implements JobParametersVal
                 || objectKey.isBlank()
                 || objectKey.length() > MAXIMUM_OBJECT_KEY_LENGTH) {
             throw new InvalidJobParametersException(
-                    "Transaction import job parameter sourceObjectKey must be a nonblank String no longer than 1024 characters");
+                    "Transaction import job parameter sourceObjectKey must be a nonblank String no longer than 1024 characters"
+            );
         }
 
         validateIdentifyingFlag(parameter, SOURCE_OBJECT_KEY, false);
+    }
+
+    private void requireProcessingOwner(JobParameters parameters)
+            throws InvalidJobParametersException {
+        JobParameter<?> parameter = parameters.getParameter(PROCESSING_OWNER);
+
+        if (parameter == null
+                || !String.class.equals(parameter.type())
+                || !(parameter.value() instanceof String processingOwner)
+                || processingOwner.isBlank()
+                || processingOwner.length() > MAXIMUM_PROCESSING_OWNER_LENGTH) {
+            throw new InvalidJobParametersException(
+                    "Transaction import job parameter processingOwner must be a nonblank String no longer than 100 characters"
+            );
+        }
+
+        validateIdentifyingFlag(parameter, PROCESSING_OWNER, false);
     }
 
     private void validateIdentifyingFlag(JobParameter<?> parameter, String parameterName,
@@ -79,7 +103,8 @@ public class TransactionImportJobParametersValidator implements JobParametersVal
         if (parameter.identifying() != expected) {
             throw new InvalidJobParametersException(
                     "Transaction import job parameter " + parameterName
-                            + " has an invalid identifying flag");
+                            + " has an invalid identifying flag"
+            );
         }
     }
 }

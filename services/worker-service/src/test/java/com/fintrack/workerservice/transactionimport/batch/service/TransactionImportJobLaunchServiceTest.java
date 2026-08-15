@@ -3,6 +3,7 @@ package com.fintrack.workerservice.transactionimport.batch.service;
 import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.transactionimport.entity.TransactionImport;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportRequestMismatchException;
+import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
 import com.fintrack.workerservice.transactionimport.service.TransactionImportService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,16 @@ class TransactionImportJobLaunchServiceTest {
     private static final Long JOB_EXECUTION_ID = 71L;
     private static final String JOB_NAME = "transactionImportJob";
     private static final String SOURCE_OBJECT_KEY = "imports/9/import-uuid/source.csv";
+    private static final String PROCESSING_OWNER = "worker-a";
+    private static final long FENCING_TOKEN = 3L;
+
+    private static final TransactionImportProcessingAttempt PROCESSING_ATTEMPT =
+            new TransactionImportProcessingAttempt(EVENT_ID,
+                    IMPORT_ID,
+                    ACCOUNT_ID,
+                    USER_ID,
+                    PROCESSING_OWNER,
+                    FENCING_TOKEN);
 
     @Mock
     private JobOperator jobOperator;
@@ -72,23 +83,29 @@ class TransactionImportJobLaunchServiceTest {
 
         prepareAuthoritativeImport();
 
-        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class))).thenReturn(jobExecution);
+        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class)))
+                .thenReturn(jobExecution);
 
-        JobExecution result = jobLaunchService.launch(event);
+        JobExecution result = jobLaunchService.launch(event, PROCESSING_ATTEMPT);
 
         assertThat(result).isSameAs(jobExecution);
 
-        ArgumentCaptor<JobParameters> parametersCaptor = ArgumentCaptor.forClass(JobParameters.class);
+        ArgumentCaptor<JobParameters> parametersCaptor =
+                ArgumentCaptor.forClass(JobParameters.class);
 
         verify(jobOperator).start(eq(transactionImportJob), parametersCaptor.capture());
 
-        assertJobParameters(parametersCaptor.getValue());
+        assertLaunchJobParameters(parametersCaptor.getValue());
         verify(transactionImportService).getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID);
         verifyNoInteractions(jobRepository);
     }
 
     @Test
-    void recoverLastExecutionIfRunningRecoversStaleExecution() throws JobInstanceAlreadyCompleteException, InvalidJobParametersException, JobExecutionAlreadyRunningException, JobRestartException {
+    void recoverLastExecutionIfRunningRecoversStaleExecution()
+            throws JobInstanceAlreadyCompleteException,
+            InvalidJobParametersException,
+            JobExecutionAlreadyRunningException,
+            JobRestartException {
         TransactionImportRequestedEvent event = event(SOURCE_OBJECT_KEY);
 
         prepareLastExecution();
@@ -111,7 +128,8 @@ class TransactionImportJobLaunchServiceTest {
 
         prepareAuthoritativeImport();
         when(transactionImportJob.getName()).thenReturn(JOB_NAME);
-        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class))).thenReturn(null);
+        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class)))
+                .thenReturn(null);
 
         boolean recovered = jobLaunchService.recoverLastExecutionIfRunning(event);
 
@@ -144,11 +162,12 @@ class TransactionImportJobLaunchServiceTest {
 
         assertThat(result).contains(jobExecution);
 
-        ArgumentCaptor<JobParameters> parametersCaptor = ArgumentCaptor.forClass(JobParameters.class);
+        ArgumentCaptor<JobParameters> parametersCaptor =
+                ArgumentCaptor.forClass(JobParameters.class);
 
         verify(jobRepository).getLastJobExecution(eq(JOB_NAME), parametersCaptor.capture());
 
-        assertJobParameters(parametersCaptor.getValue());
+        assertLookupJobParameters(parametersCaptor.getValue());
         verify(transactionImportService).getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID);
         verifyNoInteractions(jobOperator);
     }
@@ -159,7 +178,8 @@ class TransactionImportJobLaunchServiceTest {
 
         prepareAuthoritativeImport();
         when(transactionImportJob.getName()).thenReturn(JOB_NAME);
-        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class))).thenReturn(null);
+        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class)))
+                .thenReturn(null);
 
         Optional<JobExecution> result = jobLaunchService.findLastExecution(event);
 
@@ -175,7 +195,7 @@ class TransactionImportJobLaunchServiceTest {
 
         prepareAuthoritativeImportForSourceMismatch();
 
-        assertThatThrownBy(() -> jobLaunchService.launch(event))
+        assertThatThrownBy(() -> jobLaunchService.launch(event, PROCESSING_ATTEMPT))
                 .isInstanceOf(TransactionImportRequestMismatchException.class)
                 .hasMessage("Transaction import request does not match authoritative import 41");
 
@@ -206,18 +226,31 @@ class TransactionImportJobLaunchServiceTest {
         JobExecutionAlreadyRunningException cause =
                 new JobExecutionAlreadyRunningException("Import job is already running");
 
-        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class))).thenThrow(cause);
+        when(jobOperator.start(eq(transactionImportJob), any(JobParameters.class)))
+                .thenThrow(cause);
 
-        assertThatThrownBy(() -> jobLaunchService.launch(event)).isSameAs(cause);
+        assertThatThrownBy(() -> jobLaunchService.launch(event, PROCESSING_ATTEMPT))
+                .isSameAs(cause);
 
         verifyNoInteractions(jobRepository);
     }
 
     @Test
     void launchRejectsNullEventBeforeUsingDependencies() {
-        assertThatThrownBy(() -> jobLaunchService.launch(null))
+        assertThatThrownBy(() -> jobLaunchService.launch(null, PROCESSING_ATTEMPT))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Transaction import requested event is required");
+
+        verifyNoInteractions(transactionImportService, jobOperator, jobRepository);
+    }
+
+    @Test
+    void launchRejectsNullProcessingAttemptBeforeUsingDependencies() {
+        TransactionImportRequestedEvent event = event(SOURCE_OBJECT_KEY);
+
+        assertThatThrownBy(() -> jobLaunchService.launch(event, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Transaction import processing attempt is required");
 
         verifyNoInteractions(transactionImportService, jobOperator, jobRepository);
     }
@@ -241,14 +274,16 @@ class TransactionImportJobLaunchServiceTest {
     }
 
     private void prepareAuthoritativeImport() {
-        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID)).thenReturn(transactionImport);
+        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID))
+                .thenReturn(transactionImport);
         when(transactionImport.getId()).thenReturn(IMPORT_ID);
         when(transactionImport.getAccountId()).thenReturn(ACCOUNT_ID);
         when(transactionImport.getSourceObjectKey()).thenReturn(SOURCE_OBJECT_KEY);
     }
 
     private void prepareAuthoritativeImportForSourceMismatch() {
-        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID)).thenReturn(transactionImport);
+        when(transactionImportService.getRequestedImport(IMPORT_ID, ACCOUNT_ID, USER_ID))
+                .thenReturn(transactionImport);
         when(transactionImport.getId()).thenReturn(IMPORT_ID);
         when(transactionImport.getSourceObjectKey()).thenReturn(SOURCE_OBJECT_KEY);
     }
@@ -256,10 +291,30 @@ class TransactionImportJobLaunchServiceTest {
     private void prepareLastExecution() {
         prepareAuthoritativeImport();
         when(transactionImportJob.getName()).thenReturn(JOB_NAME);
-        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class))).thenReturn(jobExecution);
+        when(jobRepository.getLastJobExecution(eq(JOB_NAME), any(JobParameters.class)))
+                .thenReturn(jobExecution);
     }
 
-    private void assertJobParameters(JobParameters parameters) {
+    private void assertLaunchJobParameters(JobParameters parameters) {
+        assertBaseJobParameters(parameters);
+        assertThat(parameters.getString("processingOwner")).isEqualTo(PROCESSING_OWNER);
+        assertThat(parameters.getLong("processingFencingToken")).isEqualTo(FENCING_TOKEN);
+
+        assertThat(parameters.getParameter("processingOwner").identifying()).isFalse();
+        assertThat(parameters.getParameter("processingFencingToken").identifying()).isFalse();
+        assertThat(parameters.getIdentifyingParameters())
+                .containsExactly(parameters.getParameter("importId"));
+    }
+
+    private void assertLookupJobParameters(JobParameters parameters) {
+        assertBaseJobParameters(parameters);
+        assertThat(parameters.getParameter("processingOwner")).isNull();
+        assertThat(parameters.getParameter("processingFencingToken")).isNull();
+        assertThat(parameters.getIdentifyingParameters())
+                .containsExactly(parameters.getParameter("importId"));
+    }
+
+    private void assertBaseJobParameters(JobParameters parameters) {
         assertThat(parameters.getLong("importId")).isEqualTo(IMPORT_ID);
         assertThat(parameters.getLong("accountId")).isEqualTo(ACCOUNT_ID);
         assertThat(parameters.getLong("userId")).isEqualTo(USER_ID);
@@ -269,18 +324,15 @@ class TransactionImportJobLaunchServiceTest {
         assertThat(parameters.getParameter("accountId").identifying()).isFalse();
         assertThat(parameters.getParameter("userId").identifying()).isFalse();
         assertThat(parameters.getParameter("sourceObjectKey").identifying()).isFalse();
-        assertThat(parameters.getIdentifyingParameters()).containsExactly(parameters.getParameter("importId"));
     }
 
     private TransactionImportRequestedEvent event(String sourceObjectKey) {
-        return TransactionImportRequestedEvent.create(
-                EVENT_ID,
+        return TransactionImportRequestedEvent.create(EVENT_ID,
                 IMPORT_ID,
                 ACCOUNT_ID,
                 USER_ID,
                 sourceObjectKey,
                 "correlation-123",
-                Instant.parse("2026-08-12T12:00:00Z")
-        );
+                Instant.parse("2026-08-12T12:00:00Z"));
     }
 }

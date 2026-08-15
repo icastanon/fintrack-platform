@@ -4,6 +4,7 @@ import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.transactionimport.entity.TransactionImport;
 import com.fintrack.workerservice.transactionimport.entity.TransactionImportStatus;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportNotFoundException;
+import com.fintrack.workerservice.transactionimport.exception.TransactionImportProcessingLeaseLostException;
 import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
 import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingLeaseAcquisition;
 import com.fintrack.workerservice.transactionimport.repository.TransactionImportRepository;
@@ -83,6 +84,45 @@ public class TransactionImportProcessingLeaseManager {
                 );
 
         return TransactionImportProcessingLeaseAcquisition.acquired(processingAttempt);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void assertActive(Long importId,
+                             Long accountId,
+                             Long userId,
+                             String processingOwner,
+                             long fencingToken) {
+        if (importId == null || importId <= 0) {
+            throw new IllegalArgumentException("Import ID must be positive");
+        }
+
+        if (accountId == null || accountId <= 0) {
+            throw new IllegalArgumentException("Account ID must be positive");
+        }
+
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("User ID must be positive");
+        }
+
+        if (processingOwner == null || processingOwner.isBlank()) {
+            throw new IllegalArgumentException("Processing owner is required");
+        }
+
+        if (fencingToken <= 0) {
+            throw new IllegalArgumentException("Processing fencing token must be positive");
+        }
+
+        transactionImportRepository.findActiveProcessingLeaseForUpdate(
+                importId,
+                accountId,
+                userId,
+                processingOwner,
+                fencingToken
+        ).orElseThrow(() -> new TransactionImportProcessingLeaseLostException(
+                importId,
+                processingOwner,
+                fencingToken
+        ));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

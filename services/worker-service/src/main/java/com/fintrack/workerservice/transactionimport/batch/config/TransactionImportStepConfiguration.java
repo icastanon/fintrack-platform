@@ -4,6 +4,7 @@ import com.fintrack.workerservice.transactionimport.batch.listener.TransactionIm
 import com.fintrack.workerservice.transactionimport.batch.model.TransactionImportCsvRow;
 import com.fintrack.workerservice.transactionimport.batch.model.ValidatedTransactionImportRow;
 import com.fintrack.workerservice.transactionimport.batch.processor.TransactionImportItemProcessor;
+import com.fintrack.workerservice.transactionimport.batch.stream.TransactionImportChunkCommitFence;
 import com.fintrack.workerservice.transactionimport.batch.writer.TransactionImportItemWriter;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportRowValidationException;
 import org.springframework.batch.core.repository.JobRepository;
@@ -22,13 +23,13 @@ public class TransactionImportStepConfiguration {
     private static final int SKIP_LIMIT = 100;
 
     @Bean
-    public Step transactionImportStep(
-            JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
-            FlatFileItemReader<TransactionImportCsvRow> transactionImportCsvReader,
-            TransactionImportItemProcessor transactionImportItemProcessor,
-            TransactionImportItemWriter transactionImportItemWriter,
-            TransactionImportSkipListener transactionImportSkipListener) {
+    public Step transactionImportStep(JobRepository jobRepository,
+                                      PlatformTransactionManager transactionManager,
+                                      FlatFileItemReader<TransactionImportCsvRow> transactionImportCsvReader,
+                                      TransactionImportItemProcessor transactionImportItemProcessor,
+                                      TransactionImportItemWriter transactionImportItemWriter,
+                                      TransactionImportChunkCommitFence transactionImportChunkCommitFence,
+                                      TransactionImportSkipListener transactionImportSkipListener) {
 
         return new StepBuilder("transactionImportStep", jobRepository)
                 .<TransactionImportCsvRow, ValidatedTransactionImportRow>chunk(CHUNK_SIZE)
@@ -36,6 +37,7 @@ public class TransactionImportStepConfiguration {
                 .reader(transactionImportCsvReader)
                 .processor(transactionImportItemProcessor)
                 .writer(transactionImportItemWriter)
+                .stream(transactionImportChunkCommitFence)
                 .faultTolerant()
                 .skip(TransactionImportRowValidationException.class)
                 .skip(FlatFileParseException.class)
