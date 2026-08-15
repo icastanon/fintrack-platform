@@ -57,9 +57,9 @@ public class TransactionImportRequestedEventProcessor {
             jobLaunchService.recoverLastExecutionIfRunning(event);
 
             JobExecution jobExecution = jobLaunchService.launch(event, processingAttempt);
-            return handleExecutionResult(event, jobExecution);
+            return handleExecutionResult(event, processingAttempt, jobExecution);
         } catch (JobInstanceAlreadyCompleteException exception) {
-            return handleExistingTerminalJob(event, exception);
+            return handleExistingTerminalJob(event, processingAttempt, exception);
         } catch (JobExecutionAlreadyRunningException exception) {
             throw new TransactionImportJobProcessingException(
                     "Transaction import job is already running for import " + event.getImportId(),
@@ -74,6 +74,7 @@ public class TransactionImportRequestedEventProcessor {
     }
 
     private boolean handleExistingTerminalJob(TransactionImportRequestedEvent event,
+                                              TransactionImportProcessingAttempt processingAttempt,
                                               JobInstanceAlreadyCompleteException cause) {
         JobExecution jobExecution = jobLaunchService.findLastExecution(event)
                 .orElseThrow(() -> new TransactionImportJobProcessingException(
@@ -82,16 +83,18 @@ public class TransactionImportRequestedEventProcessor {
                         cause
                 ));
 
-        return handleExecutionResult(event, jobExecution);
+        return handleExecutionResult(event, processingAttempt, jobExecution);
     }
 
     private boolean handleExecutionResult(TransactionImportRequestedEvent event,
+                                          TransactionImportProcessingAttempt processingAttempt,
                                           JobExecution jobExecution) {
         BatchStatus status = jobExecution.getStatus();
 
         return switch (status) {
-            case COMPLETED -> complete(event, jobExecution);
-            case FAILED, STOPPED, ABANDONED, UNKNOWN -> handleUnsuccessfulExecution(event, jobExecution);
+            case COMPLETED -> complete(event, processingAttempt, jobExecution);
+            case FAILED, STOPPED, ABANDONED, UNKNOWN ->
+                    handleUnsuccessfulExecution(event, processingAttempt, jobExecution);
             case STARTING, STARTED, STOPPING ->
                     throw new TransactionImportJobProcessingException(
                             "Transaction import job returned before reaching a terminal status for import "
@@ -100,10 +103,14 @@ public class TransactionImportRequestedEventProcessor {
         };
     }
 
-    private boolean complete(TransactionImportRequestedEvent event, JobExecution jobExecution) {
-        TransactionImportRejectedOutput rejectedOutput = rejectedOutputPreparationService.prepareAndUpload(event.getImportId(), event.getSourceObjectKey());
+    private boolean complete(TransactionImportRequestedEvent event,
+                             TransactionImportProcessingAttempt processingAttempt,
+                             JobExecution jobExecution) {
+        TransactionImportRejectedOutput rejectedOutput = rejectedOutputPreparationService.prepareAndUpload(
+                event.getImportId(),
+                event.getSourceObjectKey());
 
-        boolean firstCompletion = jobFinalizationService.complete(event, jobExecution, rejectedOutput);
+        boolean firstCompletion = jobFinalizationService.complete(event, processingAttempt, jobExecution, rejectedOutput);
 
         cleanupRejectedRows(event.getImportId());
 
@@ -143,10 +150,11 @@ public class TransactionImportRequestedEventProcessor {
     }
 
     private boolean handleUnsuccessfulExecution(TransactionImportRequestedEvent event,
+                                                TransactionImportProcessingAttempt processingAttempt,
                                                 JobExecution jobExecution) {
         String failureSummary = buildFailureSummary(jobExecution);
 
-        jobFinalizationService.fail(event, jobExecution, failureSummary);
+        jobFinalizationService.fail(event, processingAttempt, jobExecution, failureSummary);
 
         throw new TransactionImportJobProcessingException(failureSummary);
     }
