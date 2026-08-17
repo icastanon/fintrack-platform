@@ -23,7 +23,9 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
         SELECT budget
         FROM Budget budget
         WHERE budget.user.id = :userId
-          AND (:budgetMonth IS NULL OR budget.budgetMonth = :budgetMonth)
+          AND budget.budgetMonth = COALESCE(:budgetMonth, budget.budgetMonth)
         """)
-    Page<Budget> findAllByUserIdAndOptionalMonth(@Param("userId") Long userId, @Param("budgetMonth") LocalDate budgetMonth, Pageable pageable);
+    Page<Budget> findAllByUserIdAndOptionalMonth(@Param("userId") Long userId,
+                                                 @Param("budgetMonth") LocalDate budgetMonth,
+                                                 Pageable pageable);
 }
