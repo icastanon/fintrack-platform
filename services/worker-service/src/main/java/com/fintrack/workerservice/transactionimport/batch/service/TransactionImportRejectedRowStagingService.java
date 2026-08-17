@@ -6,7 +6,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class TransactionImportRejectedRowStagingService {
@@ -18,14 +20,10 @@ public class TransactionImportRejectedRowStagingService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    //creating entity to validate values
     public boolean stage(Long importId, int rowNumber, String rawRecord, String failureReason) {
-        //creating entity to validate values
-        TransactionImportRejectedRowStaging rejectedRow = TransactionImportRejectedRowStaging.create(
-                        importId,
-                        rowNumber,
-                        rawRecord,
-                        failureReason
-                );
+        TransactionImportRejectedRowStaging rejectedRow =
+                TransactionImportRejectedRowStaging.create(importId, rowNumber, rawRecord, failureReason);
 
         int insertedRows = rejectedRowStagingRepository.insertIfAbsent(
                 rejectedRow.getImportId(),
@@ -53,6 +51,12 @@ public class TransactionImportRejectedRowStagingService {
     public int deleteAll(Long importId) {
         requirePositiveImportId(importId);
         return rejectedRowStagingRepository.deleteAllByImportId(importId);
+    }
+
+    @Transactional
+    public int deleteAllForCompletedImportsBefore(Instant completedBefore) {
+        Objects.requireNonNull(completedBefore, "Completed-before cutoff is required");
+        return rejectedRowStagingRepository.deleteAllForCompletedImportsBefore(completedBefore);
     }
 
     private void requirePositiveImportId(Long importId) {

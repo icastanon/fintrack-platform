@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface TransactionImportRejectedRowStagingRepository extends JpaRepository<TransactionImportRejectedRowStaging, Long> {
@@ -44,4 +45,14 @@ public interface TransactionImportRejectedRowStagingRepository extends JpaReposi
             WHERE import_id = :importId
             """, nativeQuery = true)
     int deleteAllByImportId(@Param("importId") Long importId);
+
+    @Modifying
+    @Query(value = """
+        DELETE FROM transaction_import_rejected_row_staging AS rejected_row
+        USING transaction_import AS ti
+        WHERE ti.id = rejected_row.import_id
+          AND ti.status = 'COMPLETED'
+          AND ti.completed_at < :completedBefore
+        """, nativeQuery = true)
+    int deleteAllForCompletedImportsBefore(@Param("completedBefore") Instant completedBefore);
 }

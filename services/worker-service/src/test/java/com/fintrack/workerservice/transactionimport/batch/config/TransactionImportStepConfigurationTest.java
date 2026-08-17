@@ -27,6 +27,7 @@ import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.FlatFileParseException;
 import org.springframework.batch.infrastructure.support.transaction.ResourcelessTransactionManager;
+import org.springframework.dao.CannotAcquireLockException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,8 +37,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,11 +111,9 @@ class TransactionImportStepConfigurationTest {
 
         verify(transactionImportItemWriter).write(chunkCaptor.capture());
         verify(transactionImportSkipListener).onSkipInProcess(invalidRow, validationException);
-        verify(transactionImportChunkCommitFence, atLeastOnce())
-                .update(any(ExecutionContext.class));
+        verify(transactionImportChunkCommitFence, atLeastOnce()).update(any(ExecutionContext.class));
 
-        assertThat(chunkCaptor.getValue().getItems())
-                .containsExactly(firstValidatedRow, thirdValidatedRow);
+        assertThat(chunkCaptor.getValue().getItems()).containsExactly(firstValidatedRow, thirdValidatedRow);
     }
 
     @Test
@@ -143,10 +144,58 @@ class TransactionImportStepConfigurationTest {
 
         verify(transactionImportItemWriter).write(chunkCaptor.capture());
         verify(transactionImportSkipListener).onSkipInRead(parseException);
-        verify(transactionImportChunkCommitFence, atLeastOnce())
-                .update(any(ExecutionContext.class));
+        verify(transactionImportChunkCommitFence, atLeastOnce()).update(any(ExecutionContext.class));
 
         assertThat(chunkCaptor.getValue().getItems()).containsExactly(validatedRow);
+    }
+
+    @Test
+    void stepRetriesTransientWriterFailureAndCompletesWhenRetrySucceeds() throws Exception {
+        TransactionImportCsvRow row = csvRow(2);
+        ValidatedTransactionImportRow validatedRow = validatedRow(2);
+
+        when(transactionImportCsvReader.read()).thenReturn(row, null);
+        when(transactionImportItemProcessor.process(row)).thenReturn(validatedRow);
+
+        doThrow(new CannotAcquireLockException("Database lock is temporarily unavailable"))
+                .doNothing()
+                .when(transactionImportItemWriter)
+                .write(any());
+
+        StepExecution stepExecution = stepExecution();
+
+        transactionImportStep.execute(stepExecution);
+
+        assertThat(stepExecution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(stepExecution.getWriteCount()).isEqualTo(1);
+        assertThat(stepExecution.getSkipCount()).isZero();
+
+        verify(transactionImportItemWriter, times(2)).write(any());
+    }
+
+    @Test
+    void stepFailsAfterTransientWriterRetriesAreExhausted() throws Exception {
+        TransactionImportCsvRow row = csvRow(2);
+        ValidatedTransactionImportRow validatedRow = validatedRow(2);
+
+        CannotAcquireLockException failure =
+                new CannotAcquireLockException("Database lock remained unavailable");
+
+        when(transactionImportCsvReader.read()).thenReturn(row, null);
+        when(transactionImportItemProcessor.process(row)).thenReturn(validatedRow);
+        doThrow(failure).when(transactionImportItemWriter).write(any());
+
+        StepExecution stepExecution = stepExecution();
+
+        transactionImportStep.execute(stepExecution);
+
+        assertThat(stepExecution.getStatus()).isEqualTo(BatchStatus.FAILED);
+        assertThat(stepExecution.getWriteCount()).isZero();
+        assertThat(stepExecution.getSkipCount()).isZero();
+        assertThat(stepExecution.getExitStatus().getExitDescription())
+                .contains("Database lock remained unavailable");
+
+        verify(transactionImportItemWriter, times(4)).write(any());
     }
 
     @Test
@@ -163,15 +212,10 @@ class TransactionImportStepConfigurationTest {
             return csvRow(currentRowNumber);
         });
 
-        when(transactionImportItemProcessor.process(
-                org.mockito.ArgumentMatchers.any(TransactionImportCsvRow.class)))
+        when(transactionImportItemProcessor.process(any(TransactionImportCsvRow.class)))
                 .thenAnswer(invocation -> {
                     TransactionImportCsvRow row = invocation.getArgument(0);
-
-                    throw new TransactionImportRowValidationException(
-                            row.getRowNumber(),
-                            "invalid row"
-                    );
+                    throw new TransactionImportRowValidationException(row.getRowNumber(), "invalid row");
                 });
 
         StepExecution stepExecution = stepExecution();
@@ -186,7 +230,7 @@ class TransactionImportStepConfigurationTest {
     }
 
     @Test
-    void stepDoesNotSkipUnexpectedProcessingFailure() throws Exception {
+    void stepDoesNotRetryOrSkipUnexpectedProcessingFailure() throws Exception {
         TransactionImportCsvRow row = csvRow(2);
 
         when(transactionImportCsvReader.read()).thenReturn(row, null);
@@ -201,23 +245,18 @@ class TransactionImportStepConfigurationTest {
         assertThat(stepExecution.getSkipCount()).isZero();
         assertThat(stepExecution.getWriteCount()).isZero();
 
+        verify(transactionImportItemProcessor, times(1)).process(row);
         verify(transactionImportItemWriter, never()).write(argThat(chunk -> !chunk.isEmpty()));
-        verify(transactionImportSkipListener, never())
-                .onSkipInProcess(org.mockito.ArgumentMatchers.any(),
-                        org.mockito.ArgumentMatchers.any());
+        verify(transactionImportSkipListener, never()).onSkipInProcess(any(), any());
     }
 
     @Test
-    void stepFailsWhenProcessingOwnershipIsLostBeforeCommit() throws Exception {
+    void stepFailsWithoutRetryWhenProcessingOwnershipIsLostBeforeCommit() throws Exception {
         TransactionImportCsvRow row = csvRow(2);
         ValidatedTransactionImportRow validatedRow = validatedRow(2);
 
         TransactionImportProcessingLeaseLostException leaseLostException =
-                new TransactionImportProcessingLeaseLostException(
-                        41L,
-                        "worker-attempt-123",
-                        3L
-                );
+                new TransactionImportProcessingLeaseLostException(41L, "worker-attempt-123", 3L);
 
         when(transactionImportCsvReader.read()).thenReturn(row, null);
         when(transactionImportItemProcessor.process(row)).thenReturn(validatedRow);
@@ -234,10 +273,8 @@ class TransactionImportStepConfigurationTest {
         assertThat(stepExecution.getExitStatus().getExitDescription())
                 .contains("Transaction import processing lease is no longer active");
 
-        verify(transactionImportItemWriter, atLeastOnce())
-                .write(argThat(chunk -> !chunk.isEmpty()));
-        verify(transactionImportChunkCommitFence, atLeastOnce())
-                .update(any(ExecutionContext.class));
+        verify(transactionImportItemWriter, times(1)).write(argThat(chunk -> !chunk.isEmpty()));
+        verify(transactionImportChunkCommitFence, atLeastOnce()).update(any(ExecutionContext.class));
     }
 
     private StepExecution stepExecution() {
