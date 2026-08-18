@@ -1,5 +1,6 @@
 package com.fintrack.apiservice.outbox.scheduler;
 
+import com.fintrack.apiservice.outbox.metrics.OutboxRelayMetrics;
 import com.fintrack.apiservice.outbox.service.OutboxEventLifecycleService;
 import com.fintrack.apiservice.outbox.service.OutboxRelayService;
 import org.slf4j.Logger;
@@ -20,22 +21,23 @@ public class OutboxRelayScheduler {
 
     private final OutboxRelayService outboxRelayService;
     private final OutboxEventLifecycleService lifecycleService;
+    private final OutboxRelayMetrics outboxRelayMetrics;
     private final int batchSize;
     private final int maxAttempts;
     private final Duration retryDelay;
     private final Duration claimTimeout;
     private final String lockOwner;
 
-    public OutboxRelayScheduler(
-            OutboxRelayService outboxRelayService,
-            OutboxEventLifecycleService lifecycleService,
-            @Value("${fintrack.outbox.relay.batch-size}") int batchSize,
-            @Value("${fintrack.outbox.relay.max-attempts}") int maxAttempts,
-            @Value("${fintrack.outbox.relay.retry-delay}") Duration retryDelay,
-            @Value("${fintrack.outbox.relay.claim-timeout}") Duration claimTimeout
-    ) {
+    public OutboxRelayScheduler(OutboxRelayService outboxRelayService,
+                                OutboxEventLifecycleService lifecycleService,
+                                OutboxRelayMetrics outboxRelayMetrics,
+                                @Value("${fintrack.outbox.relay.batch-size}") int batchSize,
+                                @Value("${fintrack.outbox.relay.max-attempts}") int maxAttempts,
+                                @Value("${fintrack.outbox.relay.retry-delay}") Duration retryDelay,
+                                @Value("${fintrack.outbox.relay.claim-timeout}") Duration claimTimeout) {
         this.outboxRelayService = outboxRelayService;
         this.lifecycleService = lifecycleService;
+        this.outboxRelayMetrics = outboxRelayMetrics;
         this.batchSize = batchSize;
         this.maxAttempts = maxAttempts;
         this.retryDelay = retryDelay;
@@ -47,6 +49,8 @@ public class OutboxRelayScheduler {
     public void runRelayCycle() {
         try {
             int recoveredCount = lifecycleService.recoverStaleClaims(claimTimeout, batchSize);
+            outboxRelayMetrics.recordStaleRecovered(recoveredCount);
+
             int claimedCount = outboxRelayService.relayAvailableEvents(batchSize, lockOwner, maxAttempts, retryDelay);
 
             if (recoveredCount > 0 || claimedCount > 0) {
@@ -58,6 +62,7 @@ public class OutboxRelayScheduler {
                 );
             }
         } catch (Exception exception) {
+            outboxRelayMetrics.recordRelayFailure();
             LOGGER.error("Outbox relay cycle failed: lockOwner={}", lockOwner, exception);
         }
     }

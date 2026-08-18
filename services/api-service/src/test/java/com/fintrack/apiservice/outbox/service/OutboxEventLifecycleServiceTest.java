@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,7 +57,7 @@ class OutboxEventLifecycleServiceTest {
 
         when(outboxEventRepository.findByIdForUpdate(51L)).thenReturn(Optional.of(event));
 
-        lifecycleService.recordPublicationFailure(
+        OutboxPublicationFailureOutcome outcome = lifecycleService.recordPublicationFailure(
                 51L,
                 "api-instance-1",
                 "SQS temporarily unavailable",
@@ -64,6 +65,7 @@ class OutboxEventLifecycleServiceTest {
                 Duration.ofSeconds(30)
         );
 
+        assertThat(outcome).isEqualTo(OutboxPublicationFailureOutcome.RETRY_SCHEDULED);
         assertThat(event.getStatus()).isEqualTo(OutboxEventStatus.PENDING);
         assertThat(event.getAvailableAt()).isAfter(previousAvailableAt);
         assertThat(event.getLockedAt()).isNull();
@@ -77,7 +79,7 @@ class OutboxEventLifecycleServiceTest {
 
         when(outboxEventRepository.findByIdForUpdate(51L)).thenReturn(Optional.of(event));
 
-        lifecycleService.recordPublicationFailure(
+        OutboxPublicationFailureOutcome outcome = lifecycleService.recordPublicationFailure(
                 51L,
                 "api-instance-1",
                 "SQS publication failed",
@@ -85,6 +87,7 @@ class OutboxEventLifecycleServiceTest {
                 Duration.ofSeconds(30)
         );
 
+        assertThat(outcome).isEqualTo(OutboxPublicationFailureOutcome.PERMANENTLY_FAILED);
         assertThat(event.getStatus()).isEqualTo(OutboxEventStatus.FAILED);
         assertThat(event.getLockedAt()).isNull();
         assertThat(event.getLockOwner()).isNull();
@@ -109,7 +112,7 @@ class OutboxEventLifecycleServiceTest {
         OutboxEvent firstEvent = createClaimedEvent("dead-instance-1");
         OutboxEvent secondEvent = createClaimedEvent("dead-instance-2");
 
-        when(outboxEventRepository.findStaleProcessingForUpdate(any(Instant.class), org.mockito.ArgumentMatchers.eq(10)))
+        when(outboxEventRepository.findStaleProcessingForUpdate(any(Instant.class), eq(10)))
                 .thenReturn(List.of(firstEvent, secondEvent));
 
         int recoveredCount = lifecycleService.recoverStaleClaims(Duration.ofMinutes(2), 10);
@@ -127,7 +130,7 @@ class OutboxEventLifecycleServiceTest {
 
         ArgumentCaptor<Instant> staleBeforeCaptor = ArgumentCaptor.forClass(Instant.class);
 
-        verify(outboxEventRepository).findStaleProcessingForUpdate(staleBeforeCaptor.capture(), org.mockito.ArgumentMatchers.eq(10));
+        verify(outboxEventRepository).findStaleProcessingForUpdate(staleBeforeCaptor.capture(), eq(10));
 
         assertThat(staleBeforeCaptor.getValue()).isBefore(Instant.now());
     }

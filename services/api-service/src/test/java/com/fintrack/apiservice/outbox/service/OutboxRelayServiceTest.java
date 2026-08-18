@@ -1,6 +1,7 @@
 package com.fintrack.apiservice.outbox.service;
 
 import com.fintrack.apiservice.outbox.entity.OutboxEvent;
+import com.fintrack.apiservice.outbox.metrics.OutboxRelayMetrics;
 import com.fintrack.apiservice.outbox.publisher.OutboxEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +15,10 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -38,6 +43,9 @@ class OutboxRelayServiceTest {
     @Mock
     private OutboxEventPublisher outboxEventPublisher;
 
+    @Mock
+    private OutboxRelayMetrics outboxRelayMetrics;
+
     @InjectMocks
     private OutboxRelayService outboxRelayService;
 
@@ -52,46 +60,68 @@ class OutboxRelayServiceTest {
 
         assertThat(claimedCount).isEqualTo(2);
 
-        InOrder firstEventOrder = inOrder(outboxEventPublisher, lifecycleService);
-        firstEventOrder.verify(outboxEventPublisher).publish(firstEvent);
-        firstEventOrder.verify(lifecycleService).markPublished(51L, LOCK_OWNER);
+        InOrder order = inOrder(outboxEventPublisher, lifecycleService, outboxRelayMetrics);
+        order.verify(outboxEventPublisher).publish(firstEvent);
+        order.verify(lifecycleService).markPublished(51L, LOCK_OWNER);
+        order.verify(outboxRelayMetrics).recordPublished();
+        order.verify(outboxEventPublisher).publish(secondEvent);
+        order.verify(lifecycleService).markPublished(52L, LOCK_OWNER);
+        order.verify(outboxRelayMetrics).recordPublished();
 
-        InOrder secondEventOrder = inOrder(outboxEventPublisher, lifecycleService);
-        secondEventOrder.verify(outboxEventPublisher).publish(secondEvent);
-        secondEventOrder.verify(lifecycleService).markPublished(52L, LOCK_OWNER);
-
-        verify(lifecycleService, never()).recordPublicationFailure(
-                org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.any(Duration.class)
-        );
+        verify(lifecycleService, never()).recordPublicationFailure(anyLong(), anyString(), anyString(), anyInt(), any(Duration.class));
+        verify(outboxRelayMetrics, never()).recordRetryScheduled();
+        verify(outboxRelayMetrics, never()).recordPermanentlyFailed();
     }
 
     @Test
-    void relayAvailableEventsRecordsFailureAndContinuesWithRemainingEvents() {
+    void relayAvailableEventsRecordsRetryAndContinuesWithRemainingEvents() {
         OutboxEvent failedEvent = mockEvent(51L);
         OutboxEvent successfulEvent = mockEvent(52L);
 
         when(claimService.claimAvailableEvents(10, LOCK_OWNER)).thenReturn(List.of(failedEvent, successfulEvent));
         doThrow(new IllegalStateException("SQS unavailable")).when(outboxEventPublisher).publish(failedEvent);
+        when(lifecycleService.recordPublicationFailure(51L, LOCK_OWNER, "SQS unavailable", MAX_ATTEMPTS, RETRY_DELAY))
+                .thenReturn(OutboxPublicationFailureOutcome.RETRY_SCHEDULED);
 
         int claimedCount = outboxRelayService.relayAvailableEvents(10, LOCK_OWNER, MAX_ATTEMPTS, RETRY_DELAY);
 
         assertThat(claimedCount).isEqualTo(2);
 
-        verify(lifecycleService).recordPublicationFailure(
+        InOrder order = inOrder(outboxEventPublisher, lifecycleService, outboxRelayMetrics);
+        order.verify(outboxEventPublisher).publish(failedEvent);
+        order.verify(lifecycleService).recordPublicationFailure(
                 51L,
                 LOCK_OWNER,
                 "SQS unavailable",
                 MAX_ATTEMPTS,
                 RETRY_DELAY
         );
-        verify(lifecycleService, never()).markPublished(51L, LOCK_OWNER);
+        order.verify(outboxRelayMetrics).recordRetryScheduled();
+        order.verify(outboxEventPublisher).publish(successfulEvent);
+        order.verify(lifecycleService).markPublished(52L, LOCK_OWNER);
+        order.verify(outboxRelayMetrics).recordPublished();
 
-        verify(outboxEventPublisher).publish(successfulEvent);
-        verify(lifecycleService).markPublished(52L, LOCK_OWNER);
+        verify(lifecycleService, never()).markPublished(51L, LOCK_OWNER);
+        verify(outboxRelayMetrics, never()).recordPermanentlyFailed();
+    }
+
+    @Test
+    void relayAvailableEventsRecordsPermanentFailure() {
+        OutboxEvent failedEvent = mockEvent(51L);
+
+        when(claimService.claimAvailableEvents(10, LOCK_OWNER)).thenReturn(List.of(failedEvent));
+        doThrow(new IllegalStateException("SQS unavailable")).when(outboxEventPublisher).publish(failedEvent);
+        when(lifecycleService.recordPublicationFailure(51L, LOCK_OWNER, "SQS unavailable", MAX_ATTEMPTS, RETRY_DELAY))
+                .thenReturn(OutboxPublicationFailureOutcome.PERMANENTLY_FAILED);
+
+        int claimedCount = outboxRelayService.relayAvailableEvents(10, LOCK_OWNER, MAX_ATTEMPTS, RETRY_DELAY);
+
+        assertThat(claimedCount).isEqualTo(1);
+
+        verify(outboxRelayMetrics).recordPermanentlyFailed();
+        verify(outboxRelayMetrics, never()).recordRetryScheduled();
+        verify(outboxRelayMetrics, never()).recordPublished();
+        verify(lifecycleService, never()).markPublished(51L, LOCK_OWNER);
     }
 
     @Test
@@ -104,10 +134,11 @@ class OutboxRelayServiceTest {
 
         verifyNoInteractions(outboxEventPublisher);
         verifyNoInteractions(lifecycleService);
+        verifyNoInteractions(outboxRelayMetrics);
     }
 
     @Test
-    void relayAvailableEventsDoesNotRecordPublicationFailureWhenMessageWasSentButMarkPublishedFails() {
+    void relayAvailableEventsDoesNotRecordMetricWhenMessageWasSentButMarkPublishedFails() {
         OutboxEvent event = mockEvent(51L);
 
         when(claimService.claimAvailableEvents(10, LOCK_OWNER)).thenReturn(List.of(event));
@@ -119,12 +150,13 @@ class OutboxRelayServiceTest {
 
         verify(outboxEventPublisher).publish(event);
         verify(lifecycleService, never()).recordPublicationFailure(
-                org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.any(Duration.class)
+                anyLong(),
+                anyString(),
+                anyString(),
+                anyInt(),
+                any(Duration.class)
         );
+        verifyNoInteractions(outboxRelayMetrics);
     }
 
     private OutboxEvent mockEvent(Long id) {

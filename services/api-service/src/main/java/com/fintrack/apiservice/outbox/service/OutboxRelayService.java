@@ -1,6 +1,7 @@
 package com.fintrack.apiservice.outbox.service;
 
 import com.fintrack.apiservice.outbox.entity.OutboxEvent;
+import com.fintrack.apiservice.outbox.metrics.OutboxRelayMetrics;
 import com.fintrack.apiservice.outbox.publisher.OutboxEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -13,11 +14,16 @@ public class OutboxRelayService {
     private final OutboxEventClaimService claimService;
     private final OutboxEventLifecycleService lifecycleService;
     private final OutboxEventPublisher outboxEventPublisher;
+    private final OutboxRelayMetrics outboxRelayMetrics;
 
-    public OutboxRelayService(OutboxEventClaimService claimService, OutboxEventLifecycleService lifecycleService, OutboxEventPublisher outboxEventPublisher) {
+    public OutboxRelayService(OutboxEventClaimService claimService,
+                              OutboxEventLifecycleService lifecycleService,
+                              OutboxEventPublisher outboxEventPublisher,
+                              OutboxRelayMetrics outboxRelayMetrics) {
         this.claimService = claimService;
         this.lifecycleService = lifecycleService;
         this.outboxEventPublisher = outboxEventPublisher;
+        this.outboxRelayMetrics = outboxRelayMetrics;
     }
 
     public int relayAvailableEvents(int batchSize, String lockOwner, int maxAttempts, Duration retryDelay) {
@@ -34,17 +40,29 @@ public class OutboxRelayService {
         try {
             outboxEventPublisher.publish(event);
         } catch (Exception exception) {
-            lifecycleService.recordPublicationFailure(
+            OutboxPublicationFailureOutcome outcome = lifecycleService.recordPublicationFailure(
                     event.getId(),
                     lockOwner,
                     getErrorMessage(exception),
                     maxAttempts,
                     retryDelay
             );
+
+            recordPublicationFailureMetric(outcome);
             return;
         }
 
         lifecycleService.markPublished(event.getId(), lockOwner);
+        outboxRelayMetrics.recordPublished();
+    }
+
+    private void recordPublicationFailureMetric(OutboxPublicationFailureOutcome outcome) {
+        if (outcome == OutboxPublicationFailureOutcome.PERMANENTLY_FAILED) {
+            outboxRelayMetrics.recordPermanentlyFailed();
+            return;
+        }
+
+        outboxRelayMetrics.recordRetryScheduled();
     }
 
     private String getErrorMessage(Exception exception) {

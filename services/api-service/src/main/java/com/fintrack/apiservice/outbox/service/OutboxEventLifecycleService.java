@@ -26,7 +26,7 @@ public class OutboxEventLifecycleService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordPublicationFailure(Long outboxEventId, String lockOwner, String error, int maxAttempts, Duration retryDelay) {
+    public OutboxPublicationFailureOutcome recordPublicationFailure(Long outboxEventId, String lockOwner, String error, int maxAttempts, Duration retryDelay) {
         if (maxAttempts < 1) {
             throw new IllegalArgumentException("Maximum attempts must be positive");
         }
@@ -39,10 +39,11 @@ public class OutboxEventLifecycleService {
 
         if (event.getAttemptCount() >= maxAttempts) {
             event.markFailed(lockOwner, error);
-            return;
+            return OutboxPublicationFailureOutcome.PERMANENTLY_FAILED;
         }
 
         event.rescheduleAfterFailure(lockOwner, Instant.now().plus(retryDelay), error);
+        return OutboxPublicationFailureOutcome.RETRY_SCHEDULED;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
