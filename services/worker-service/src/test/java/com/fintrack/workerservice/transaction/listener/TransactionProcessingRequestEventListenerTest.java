@@ -3,6 +3,7 @@ package com.fintrack.workerservice.transaction.listener;
 import com.fintrack.eventcontracts.TransactionProcessingReason;
 import com.fintrack.eventcontracts.TransactionProcessingRequestEvent;
 import com.fintrack.workerservice.transaction.exception.UnsupportedTransactionProcessingRequestEventVersionException;
+import com.fintrack.workerservice.transaction.metrics.TransactionProcessingMetrics;
 import com.fintrack.workerservice.transaction.service.TransactionProcessingRequestEventProcessor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -18,10 +19,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionProcessingRequestEventListenerTest {
@@ -30,6 +30,9 @@ class TransactionProcessingRequestEventListenerTest {
 
     @Mock
     private TransactionProcessingRequestEventProcessor transactionProcessingRequestEventProcessor;
+
+    @Mock
+    private TransactionProcessingMetrics transactionProcessingMetrics;
 
     @InjectMocks
     private TransactionProcessingRequestEventListener listener;
@@ -40,29 +43,43 @@ class TransactionProcessingRequestEventListenerTest {
     }
 
     @Test
-    void handleAcceptsCurrentEventVersionAndDelegatesProcessing() {
-        TransactionProcessingRequestEvent event = TransactionProcessingRequestEvent.create(
-                UUID.randomUUID(),
-                100L,
-                25L,
-                TransactionProcessingReason.CREATED,
-                CORRELATION_ID,
-                Instant.parse("2026-08-06T12:00:00Z")
-        );
+    void handleRecordsProcessedOutcomeForFirstProcessing() {
+        TransactionProcessingRequestEvent event = createCurrentEvent();
 
-        doAnswer(invocation -> {
+        when(transactionProcessingRequestEventProcessor.process(event)).thenAnswer(invocation -> {
             assertThat(MDC.get("correlationId")).isEqualTo(CORRELATION_ID);
-            return null;
-        }).when(transactionProcessingRequestEventProcessor).process(event);
+            return true;
+        });
 
         assertThatCode(() -> listener.handle(event)).doesNotThrowAnyException();
 
         verify(transactionProcessingRequestEventProcessor).process(event);
+        verify(transactionProcessingMetrics).recordProcessed();
+        verify(transactionProcessingMetrics, never()).recordDuplicate();
+        verify(transactionProcessingMetrics, never()).recordFailed();
+        verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
+
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handleRejectsUnsupportedEventVersionWithoutProcessing() {
+    void handleRecordsDuplicateOutcomeWhenMessageWasAlreadyProcessed() {
+        TransactionProcessingRequestEvent event = createCurrentEvent();
+
+        when(transactionProcessingRequestEventProcessor.process(event)).thenReturn(false);
+
+        assertThatCode(() -> listener.handle(event)).doesNotThrowAnyException();
+
+        verify(transactionProcessingMetrics).recordDuplicate();
+        verify(transactionProcessingMetrics, never()).recordProcessed();
+        verify(transactionProcessingMetrics, never()).recordFailed();
+        verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
+
+        assertThat(MDC.get("correlationId")).isNull();
+    }
+
+    @Test
+    void handleRejectsUnsupportedVersionAndRecordsOutcome() {
         TransactionProcessingRequestEvent event = new TransactionProcessingRequestEvent(
                 UUID.randomUUID(),
                 TransactionProcessingRequestEvent.CURRENT_VERSION + 1,
@@ -75,17 +92,38 @@ class TransactionProcessingRequestEventListenerTest {
 
         assertThatThrownBy(() -> listener.handle(event))
                 .isInstanceOf(UnsupportedTransactionProcessingRequestEventVersionException.class)
-                .hasMessage(
-                        "Unsupported transaction-processing request event version: 2. Supported version: 1"
-                );
+                .hasMessage("Unsupported transaction-processing request event version: 2. Supported version: 1");
 
         verify(transactionProcessingRequestEventProcessor, never()).process(event);
+        verify(transactionProcessingMetrics).recordUnsupportedVersion();
+        verify(transactionProcessingMetrics, never()).recordProcessed();
+        verify(transactionProcessingMetrics, never()).recordDuplicate();
+        verify(transactionProcessingMetrics, never()).recordFailed();
+
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handleRemovesCorrelationIdWhenProcessingFails() {
-        TransactionProcessingRequestEvent event = TransactionProcessingRequestEvent.create(
+    void handleRecordsFailureAndRemovesCorrelationIdWhenProcessingFails() {
+        TransactionProcessingRequestEvent event = createCurrentEvent();
+
+        when(transactionProcessingRequestEventProcessor.process(event))
+                .thenThrow(new IllegalStateException("Processing failed"));
+
+        assertThatThrownBy(() -> listener.handle(event))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Processing failed");
+
+        verify(transactionProcessingMetrics).recordFailed();
+        verify(transactionProcessingMetrics, never()).recordProcessed();
+        verify(transactionProcessingMetrics, never()).recordDuplicate();
+        verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
+
+        assertThat(MDC.get("correlationId")).isNull();
+    }
+
+    private TransactionProcessingRequestEvent createCurrentEvent() {
+        return TransactionProcessingRequestEvent.create(
                 UUID.randomUUID(),
                 100L,
                 25L,
@@ -93,15 +131,5 @@ class TransactionProcessingRequestEventListenerTest {
                 CORRELATION_ID,
                 Instant.parse("2026-08-06T12:00:00Z")
         );
-
-        doThrow(new IllegalStateException("Processing failed"))
-                .when(transactionProcessingRequestEventProcessor)
-                .process(event);
-
-        assertThatThrownBy(() -> listener.handle(event))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Processing failed");
-
-        assertThat(MDC.get("correlationId")).isNull();
     }
 }
