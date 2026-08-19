@@ -2,7 +2,9 @@ package com.fintrack.workerservice.transactionimport.listener;
 
 import com.fintrack.eventcontracts.TransactionImportRequestedEvent;
 import com.fintrack.workerservice.transactionimport.exception.TransactionImportJobProcessingException;
+import com.fintrack.workerservice.transactionimport.exception.TransactionImportProcessingLeaseLostException;
 import com.fintrack.workerservice.transactionimport.exception.UnsupportedTransactionImportRequestedEventVersionException;
+import com.fintrack.workerservice.transactionimport.metrics.TransactionImportMetrics;
 import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingAttempt;
 import com.fintrack.workerservice.transactionimport.model.TransactionImportProcessingLeaseAcquisition;
 import com.fintrack.workerservice.transactionimport.service.TransactionImportProcessingLeaseManager;
@@ -26,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,6 +63,9 @@ class TransactionImportRequestedEventListenerTest {
     private TransactionImportMessageVisibilityHeartbeat.RunningHeartbeat runningHeartbeat;
 
     @Mock
+    private TransactionImportMetrics transactionImportMetrics;
+
+    @Mock
     private Visibility visibility;
 
     @InjectMocks
@@ -71,14 +77,13 @@ class TransactionImportRequestedEventListenerTest {
     }
 
     @Test
-    void handleAcquiresLeaseStartsHeartbeatAndProcessesEvent() {
+    void handleRecordsCompletedWhenImportIsFinalizedForFirstTime() {
         TransactionImportRequestedEvent event = currentEvent();
 
         when(processingLeaseManager.acquire(event))
                 .thenReturn(TransactionImportProcessingLeaseAcquisition.acquired(PROCESSING_ATTEMPT));
         when(messageVisibilityHeartbeat.start(visibility, PROCESSING_ATTEMPT)).thenReturn(runningHeartbeat);
         when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenReturn(true);
-        when(runningHeartbeat.hasLostProcessingLease()).thenReturn(false);
 
         assertThatCode(() -> listener.handle(event, visibility)).doesNotThrowAnyException();
 
@@ -92,32 +97,37 @@ class TransactionImportRequestedEventListenerTest {
         order.verify(processingLeaseManager).acquire(event);
         order.verify(messageVisibilityHeartbeat).start(visibility, PROCESSING_ATTEMPT);
         order.verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
-        order.verify(runningHeartbeat).hasLostProcessingLease();
         order.verify(runningHeartbeat).close();
+
+        verify(transactionImportMetrics).recordLeaseAcquired();
+        verify(transactionImportMetrics).recordCompleted();
+        verifyNoMoreInteractions(transactionImportMetrics);
 
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handleAcceptsPreviouslyFinalizedBatchExecution() {
+    void handleRecordsDuplicateWhenAcquiredImportWasPreviouslyFinalized() {
         TransactionImportRequestedEvent event = currentEvent();
 
         when(processingLeaseManager.acquire(event))
                 .thenReturn(TransactionImportProcessingLeaseAcquisition.acquired(PROCESSING_ATTEMPT));
         when(messageVisibilityHeartbeat.start(visibility, PROCESSING_ATTEMPT)).thenReturn(runningHeartbeat);
         when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenReturn(false);
-        when(runningHeartbeat.hasLostProcessingLease()).thenReturn(false);
 
         assertThatCode(() -> listener.handle(event, visibility)).doesNotThrowAnyException();
 
         verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
         verify(runningHeartbeat).close();
+        verify(transactionImportMetrics).recordLeaseAcquired();
+        verify(transactionImportMetrics).recordDuplicate();
+        verifyNoMoreInteractions(transactionImportMetrics);
 
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handleAcknowledgesImportThatIsAlreadyCompleted() {
+    void handleAcknowledgesAndRecordsDuplicateWhenImportIsAlreadyCompleted() {
         TransactionImportRequestedEvent event = currentEvent();
 
         when(processingLeaseManager.acquire(event))
@@ -126,13 +136,16 @@ class TransactionImportRequestedEventListenerTest {
         assertThatCode(() -> listener.handle(event, visibility)).doesNotThrowAnyException();
 
         verify(processingLeaseManager).acquire(event);
+        verify(transactionImportMetrics).recordAlreadyCompletedLease();
+        verify(transactionImportMetrics).recordDuplicate();
+        verifyNoMoreInteractions(transactionImportMetrics);
         verifyNoInteractions(eventProcessor, messageVisibilityHeartbeat, runningHeartbeat, visibility);
 
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handleRejectsImportOwnedByAnotherWorker() {
+    void handleRecordsActiveLeaseAndFailedWhenAnotherWorkerOwnsImport() {
         TransactionImportRequestedEvent event = currentEvent();
 
         when(processingLeaseManager.acquire(event))
@@ -143,13 +156,16 @@ class TransactionImportRequestedEventListenerTest {
                 .hasMessage("Transaction import is currently owned by another worker: importId=" + IMPORT_ID);
 
         verify(processingLeaseManager).acquire(event);
+        verify(transactionImportMetrics).recordActiveLease();
+        verify(transactionImportMetrics).recordFailed();
+        verifyNoMoreInteractions(transactionImportMetrics);
         verifyNoInteractions(eventProcessor, messageVisibilityHeartbeat, runningHeartbeat, visibility);
 
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handleRejectsUnsupportedVersionBeforeAcquiringLease() {
+    void handleRecordsUnsupportedVersionBeforeAcquiringLease() {
         TransactionImportRequestedEvent event = new TransactionImportRequestedEvent(
                 EVENT_ID,
                 TransactionImportRequestedEvent.CURRENT_VERSION + 1,
@@ -165,6 +181,8 @@ class TransactionImportRequestedEventListenerTest {
                 .isInstanceOf(UnsupportedTransactionImportRequestedEventVersionException.class)
                 .hasMessage("Unsupported transaction-import request event version: 2. Supported version: 1");
 
+        verify(transactionImportMetrics).recordUnsupportedVersion();
+        verifyNoMoreInteractions(transactionImportMetrics);
         verifyNoInteractions(
                 processingLeaseManager,
                 eventProcessor,
@@ -177,7 +195,7 @@ class TransactionImportRequestedEventListenerTest {
     }
 
     @Test
-    void handlePropagatesProcessingFailureAndClosesHeartbeat() {
+    void handleRecordsFailedWhenProcessingFails() {
         TransactionImportRequestedEvent event = currentEvent();
         TransactionImportJobProcessingException cause =
                 new TransactionImportJobProcessingException("Transaction import job failed");
@@ -201,11 +219,15 @@ class TransactionImportRequestedEventListenerTest {
         order.verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
         order.verify(runningHeartbeat).close();
 
+        verify(transactionImportMetrics).recordLeaseAcquired();
+        verify(transactionImportMetrics).recordFailed();
+        verifyNoMoreInteractions(transactionImportMetrics);
+
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handlePropagatesInitialHeartbeatFailureWithoutProcessingEvent() {
+    void handleRecordsFailedWhenInitialHeartbeatCannotStart() {
         TransactionImportRequestedEvent event = currentEvent();
         RuntimeException cause = new IllegalStateException("SQS visibility update failed");
 
@@ -217,30 +239,54 @@ class TransactionImportRequestedEventListenerTest {
 
         verify(processingLeaseManager).acquire(event);
         verify(messageVisibilityHeartbeat).start(visibility, PROCESSING_ATTEMPT);
+        verify(transactionImportMetrics).recordLeaseAcquired();
+        verify(transactionImportMetrics).recordFailed();
+        verifyNoMoreInteractions(transactionImportMetrics);
         verifyNoInteractions(eventProcessor, runningHeartbeat);
 
         assertThat(MDC.get("correlationId")).isNull();
     }
 
     @Test
-    void handleRejectsSuccessfulProcessingWhenLeaseWasLost() {
+    void handleRecordsLostLeaseAndFailedWhenProcessingFenceRejectsOwner() {
         TransactionImportRequestedEvent event = currentEvent();
+        TransactionImportProcessingLeaseLostException cause =
+                new TransactionImportProcessingLeaseLostException(
+                        IMPORT_ID,
+                        PROCESSING_ATTEMPT.getProcessingOwner(),
+                        PROCESSING_ATTEMPT.getFencingToken()
+                );
 
         when(processingLeaseManager.acquire(event))
                 .thenReturn(TransactionImportProcessingLeaseAcquisition.acquired(PROCESSING_ATTEMPT));
         when(messageVisibilityHeartbeat.start(visibility, PROCESSING_ATTEMPT)).thenReturn(runningHeartbeat);
-        when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenReturn(true);
-        when(runningHeartbeat.hasLostProcessingLease()).thenReturn(true);
+        when(eventProcessor.process(event, PROCESSING_ATTEMPT)).thenThrow(cause);
 
-        assertThatThrownBy(() -> listener.handle(event, visibility))
-                .isInstanceOf(TransactionImportJobProcessingException.class)
-                .hasMessage("Transaction import processing lease was lost: importId=" + IMPORT_ID);
+        assertThatThrownBy(() -> listener.handle(event, visibility)).isSameAs(cause);
 
-        InOrder order = inOrder(eventProcessor, runningHeartbeat);
+        verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
+        verify(runningHeartbeat).close();
+        verify(transactionImportMetrics).recordLeaseAcquired();
+        verify(transactionImportMetrics).recordLostLease();
+        verify(transactionImportMetrics).recordFailed();
+        verifyNoMoreInteractions(transactionImportMetrics);
 
-        order.verify(eventProcessor).process(event, PROCESSING_ATTEMPT);
-        order.verify(runningHeartbeat).hasLostProcessingLease();
-        order.verify(runningHeartbeat).close();
+        assertThat(MDC.get("correlationId")).isNull();
+    }
+
+    @Test
+    void handleRecordsFailedWhenLeaseAcquisitionThrows() {
+        TransactionImportRequestedEvent event = currentEvent();
+        RuntimeException cause = new IllegalStateException("PostgreSQL unavailable");
+
+        when(processingLeaseManager.acquire(event)).thenThrow(cause);
+
+        assertThatThrownBy(() -> listener.handle(event, visibility)).isSameAs(cause);
+
+        verify(processingLeaseManager).acquire(event);
+        verify(transactionImportMetrics).recordFailed();
+        verifyNoMoreInteractions(transactionImportMetrics);
+        verifyNoInteractions(eventProcessor, messageVisibilityHeartbeat, runningHeartbeat, visibility);
 
         assertThat(MDC.get("correlationId")).isNull();
     }
