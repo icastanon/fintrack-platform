@@ -38,7 +38,11 @@ public class TransactionImportRequestedEventListener {
         this.transactionImportMetrics = transactionImportMetrics;
     }
 
-    @SqsListener("${fintrack.sqs.import-jobs-queue}")
+    @SqsListener(
+            value = "${fintrack.sqs.import-jobs-queue}",
+            maxConcurrentMessages = "${fintrack.sqs.import-jobs-max-concurrent-messages}",
+            maxMessagesPerPoll = "${fintrack.sqs.import-jobs-max-messages-per-poll}"
+    )
     public void handle(TransactionImportRequestedEvent event, Visibility visibility) {
         MDC.put(CORRELATION_ID_MDC_KEY, event.getCorrelationId());
 

@@ -12,7 +12,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.MDC;
+import org.springframework.dao.CannotAcquireLockException;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -58,6 +60,7 @@ class TransactionProcessingRequestEventListenerTest {
         verify(transactionProcessingMetrics, never()).recordDuplicate();
         verify(transactionProcessingMetrics, never()).recordFailed();
         verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
+        verify(transactionProcessingMetrics, never()).recordLockTimeout();
 
         assertThat(MDC.get("correlationId")).isNull();
     }
@@ -70,10 +73,12 @@ class TransactionProcessingRequestEventListenerTest {
 
         assertThatCode(() -> listener.handle(event)).doesNotThrowAnyException();
 
+        verify(transactionProcessingRequestEventProcessor).process(event);
         verify(transactionProcessingMetrics).recordDuplicate();
         verify(transactionProcessingMetrics, never()).recordProcessed();
         verify(transactionProcessingMetrics, never()).recordFailed();
         verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
+        verify(transactionProcessingMetrics, never()).recordLockTimeout();
 
         assertThat(MDC.get("correlationId")).isNull();
     }
@@ -99,6 +104,7 @@ class TransactionProcessingRequestEventListenerTest {
         verify(transactionProcessingMetrics, never()).recordProcessed();
         verify(transactionProcessingMetrics, never()).recordDuplicate();
         verify(transactionProcessingMetrics, never()).recordFailed();
+        verify(transactionProcessingMetrics, never()).recordLockTimeout();
 
         assertThat(MDC.get("correlationId")).isNull();
     }
@@ -114,7 +120,65 @@ class TransactionProcessingRequestEventListenerTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Processing failed");
 
+        verify(transactionProcessingRequestEventProcessor).process(event);
         verify(transactionProcessingMetrics).recordFailed();
+        verify(transactionProcessingMetrics, never()).recordProcessed();
+        verify(transactionProcessingMetrics, never()).recordDuplicate();
+        verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
+        verify(transactionProcessingMetrics, never()).recordLockTimeout();
+
+        assertThat(MDC.get("correlationId")).isNull();
+    }
+
+    @Test
+    void handleRecordsLockTimeoutWhenPostgreSqlReportsLockNotAvailable() {
+        TransactionProcessingRequestEvent event = createCurrentEvent();
+
+        SQLException sqlException = new SQLException(
+                "ERROR: canceling statement due to lock timeout",
+                "55P03"
+        );
+
+        CannotAcquireLockException cause = new CannotAcquireLockException(
+                "Could not acquire PostgreSQL lock",
+                sqlException
+        );
+
+        when(transactionProcessingRequestEventProcessor.process(event)).thenThrow(cause);
+
+        assertThatThrownBy(() -> listener.handle(event)).isSameAs(cause);
+
+        verify(transactionProcessingRequestEventProcessor).process(event);
+        verify(transactionProcessingMetrics).recordLockTimeout();
+        verify(transactionProcessingMetrics, never()).recordProcessed();
+        verify(transactionProcessingMetrics, never()).recordDuplicate();
+        verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
+        verify(transactionProcessingMetrics, never()).recordFailed();
+
+        assertThat(MDC.get("correlationId")).isNull();
+    }
+
+    @Test
+    void handleRecordsOrdinaryFailureForDifferentSqlState() {
+        TransactionProcessingRequestEvent event = createCurrentEvent();
+
+        SQLException sqlException = new SQLException(
+                "ERROR: connection failure",
+                "08006"
+        );
+
+        IllegalStateException cause = new IllegalStateException(
+                "Transaction processing failed",
+                sqlException
+        );
+
+        when(transactionProcessingRequestEventProcessor.process(event)).thenThrow(cause);
+
+        assertThatThrownBy(() -> listener.handle(event)).isSameAs(cause);
+
+        verify(transactionProcessingRequestEventProcessor).process(event);
+        verify(transactionProcessingMetrics).recordFailed();
+        verify(transactionProcessingMetrics, never()).recordLockTimeout();
         verify(transactionProcessingMetrics, never()).recordProcessed();
         verify(transactionProcessingMetrics, never()).recordDuplicate();
         verify(transactionProcessingMetrics, never()).recordUnsupportedVersion();
