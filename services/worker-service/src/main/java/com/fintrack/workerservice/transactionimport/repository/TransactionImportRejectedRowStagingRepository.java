@@ -55,4 +55,11 @@ public interface TransactionImportRejectedRowStagingRepository extends JpaReposi
           AND ti.completed_at < :completedBefore
         """, nativeQuery = true)
     int deleteAllForCompletedImportsBefore(@Param("completedBefore") Instant completedBefore);
+
+    @Modifying
+    @Query(value = """
+        DELETE FROM transaction_import_rejected_row_staging
+        WHERE import_id IN (:importIds)
+        """, nativeQuery = true)
+    int deleteAllByImportIds(@Param("importIds") List<Long> importIds);
 }

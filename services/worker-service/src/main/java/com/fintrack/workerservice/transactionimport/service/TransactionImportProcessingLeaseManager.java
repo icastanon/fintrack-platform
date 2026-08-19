@@ -61,6 +61,10 @@ public class TransactionImportProcessingLeaseManager {
             return TransactionImportProcessingLeaseAcquisition.alreadyCompleted();
         }
 
+        if (transactionImport.getStatus() == TransactionImportStatus.ABANDONED) {
+            return TransactionImportProcessingLeaseAcquisition.alreadyAbandoned();
+        }
+
         if (transactionImport.hasActiveProcessingLease(claimedAt)) {
             return TransactionImportProcessingLeaseAcquisition.activeLease();
         }

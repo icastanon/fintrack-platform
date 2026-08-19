@@ -348,4 +348,26 @@ class TransactionImportProcessingLeaseManagerTest {
                 PROCESSING_OWNER,
                 FENCING_TOKEN);
     }
+
+    @Test
+    void acquireReturnsAbandonedWithoutChangingLease() {
+        matchingImportExistsForUpdate();
+
+        when(transactionImportRepository.getCurrentDatabaseTime()).thenReturn(CLAIMED_AT);
+        when(transactionImport.getStatus()).thenReturn(TransactionImportStatus.ABANDONED);
+
+        TransactionImportProcessingLeaseAcquisition acquisition = leaseManager.acquire(event());
+
+        assertThat(acquisition.getOutcome())
+                .isEqualTo(TransactionImportProcessingLeaseAcquisition.Outcome.ALREADY_ABANDONED);
+        assertThat(acquisition.getProcessingAttempt()).isNull();
+        assertThat(acquisition.isAcquired()).isFalse();
+
+        verify(transactionImport, never()).hasActiveProcessingLease(CLAIMED_AT);
+        verify(transactionImport, never()).claimProcessingLease(
+                anyString(),
+                eq(CLAIMED_AT),
+                eq(LEASE_EXPIRES_AT)
+        );
+    }
 }

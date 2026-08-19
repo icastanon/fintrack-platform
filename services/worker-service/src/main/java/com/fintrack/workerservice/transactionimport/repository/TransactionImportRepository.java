@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface TransactionImportRepository extends JpaRepository<TransactionImport, Long> {
@@ -106,4 +107,20 @@ public interface TransactionImportRepository extends JpaRepository<TransactionIm
                                                                    @Param("userId") Long userId,
                                                                    @Param("processingOwner") String processingOwner,
                                                                    @Param("fencingToken") long fencingToken);
+
+    @Query(value = """
+        SELECT ti.*
+        FROM transaction_import AS ti
+        WHERE ti.status = 'FAILED'
+          AND ti.completed_at < :failedBefore
+          AND (
+              ti.processing_lease_expires_at IS NULL
+              OR ti.processing_lease_expires_at <= clock_timestamp()
+          )
+        ORDER BY ti.completed_at, ti.id
+        LIMIT :batchSize
+        FOR UPDATE SKIP LOCKED
+        """, nativeQuery = true)
+    List<TransactionImport> findStaleFailedImportsForUpdate(@Param("failedBefore") Instant failedBefore,
+                                                            @Param("batchSize") int batchSize);
 }

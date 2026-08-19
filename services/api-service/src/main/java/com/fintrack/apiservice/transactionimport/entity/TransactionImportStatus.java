@@ -4,5 +4,6 @@ public enum TransactionImportStatus {
     QUEUED,
     RUNNING,
     COMPLETED,
-    FAILED
+    FAILED,
+    ABANDONED
 }

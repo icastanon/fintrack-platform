@@ -66,4 +66,15 @@ class TransactionImportProcessingLeaseAcquisitionTest {
                 3L
         );
     }
+
+    @Test
+    void alreadyAbandonedContainsNoProcessingAttempt() {
+        TransactionImportProcessingLeaseAcquisition acquisition =
+                TransactionImportProcessingLeaseAcquisition.alreadyAbandoned();
+
+        assertThat(acquisition.getOutcome())
+                .isEqualTo(TransactionImportProcessingLeaseAcquisition.Outcome.ALREADY_ABANDONED);
+        assertThat(acquisition.getProcessingAttempt()).isNull();
+        assertThat(acquisition.isAcquired()).isFalse();
+    }
 }

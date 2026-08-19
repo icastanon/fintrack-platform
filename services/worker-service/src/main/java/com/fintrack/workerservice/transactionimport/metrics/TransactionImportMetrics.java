@@ -18,6 +18,8 @@ public class TransactionImportMetrics {
     private final Counter activeLeaseCounter;
     private final Counter alreadyCompletedLeaseCounter;
     private final Counter lostLeaseCounter;
+    private final Counter abandonedCounter;
+    private final Counter alreadyAbandonedLeaseCounter;
 
     public TransactionImportMetrics(MeterRegistry meterRegistry) {
         this.completedCounter = createMessageCounter(meterRegistry, "completed");
@@ -28,6 +30,8 @@ public class TransactionImportMetrics {
         this.activeLeaseCounter = createLeaseCounter(meterRegistry, "active");
         this.alreadyCompletedLeaseCounter = createLeaseCounter(meterRegistry, "already_completed");
         this.lostLeaseCounter = createLeaseCounter(meterRegistry, "lost");
+        this.abandonedCounter = createMessageCounter(meterRegistry, "abandoned");
+        this.alreadyAbandonedLeaseCounter = createLeaseCounter(meterRegistry, "already_abandoned");
     }
 
     public void recordCompleted() {
@@ -60,6 +64,14 @@ public class TransactionImportMetrics {
 
     public void recordLostLease() {
         lostLeaseCounter.increment();
+    }
+
+    public void recordAbandoned() {
+        abandonedCounter.increment();
+    }
+
+    public void recordAlreadyAbandonedLease() {
+        alreadyAbandonedLeaseCounter.increment();
     }
 
     private Counter createMessageCounter(MeterRegistry meterRegistry, String outcome) {

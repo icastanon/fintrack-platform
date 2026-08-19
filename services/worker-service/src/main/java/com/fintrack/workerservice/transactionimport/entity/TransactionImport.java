@@ -108,8 +108,9 @@ public class TransactionImport {
 
     public long claimProcessingLease(String processingOwner, Instant claimedAt,
                                      Instant leaseExpiresAt) {
-        if (status == TransactionImportStatus.COMPLETED) {
-            throw new IllegalStateException("A completed transaction import cannot be claimed");
+        if (status == TransactionImportStatus.COMPLETED
+                || status == TransactionImportStatus.ABANDONED) {
+            throw new IllegalStateException("A terminal transaction import cannot be claimed");
         }
 
         Objects.requireNonNull(claimedAt, "Processing lease claim time is required");
@@ -171,8 +172,9 @@ public class TransactionImport {
                            String failureSummary) {
         validateRowCounts(successfulRows, skippedRows, failedRows);
 
-        if (status == TransactionImportStatus.COMPLETED) {
-            throw new IllegalStateException("A completed transaction import cannot be failed");
+        if (status == TransactionImportStatus.COMPLETED
+                || status == TransactionImportStatus.ABANDONED) {
+            throw new IllegalStateException("A terminal transaction import cannot be failed");
         }
 
         String normalizedFailureSummary = normalizeFailureSummary(failureSummary);
@@ -188,9 +190,20 @@ public class TransactionImport {
         completedAt = Instant.now();
     }
 
+    public void markAbandoned() {
+        if (status != TransactionImportStatus.FAILED) {
+            throw new IllegalStateException("Only a failed transaction import can be abandoned");
+        }
+
+        status = TransactionImportStatus.ABANDONED;
+        processingOwner = null;
+        processingLeaseExpiresAt = null;
+    }
+
     private void markRunning(Instant startedAt) {
-        if (status == TransactionImportStatus.COMPLETED) {
-            throw new IllegalStateException("A completed transaction import cannot be restarted");
+        if (status == TransactionImportStatus.COMPLETED
+                || status == TransactionImportStatus.ABANDONED) {
+            throw new IllegalStateException("A terminal transaction import cannot be restarted");
         }
 
         status = TransactionImportStatus.RUNNING;

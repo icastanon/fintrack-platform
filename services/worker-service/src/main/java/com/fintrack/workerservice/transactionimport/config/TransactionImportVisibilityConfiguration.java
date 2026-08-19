@@ -8,6 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 @Configuration
 public class TransactionImportVisibilityConfiguration {
 
+    //used by heartbeat
     @Bean
     public TaskScheduler transactionImportVisibilityTaskScheduler() {
         ThreadPoolTaskScheduler taskScheduler = new ThreadPoolTaskScheduler();

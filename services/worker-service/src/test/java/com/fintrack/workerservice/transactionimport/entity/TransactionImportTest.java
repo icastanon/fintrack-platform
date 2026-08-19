@@ -131,7 +131,7 @@ class TransactionImportTest {
                         CLAIMED_AT,
                         LEASE_EXPIRES_AT))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("A completed transaction import cannot be claimed");
+                .hasMessage("A terminal transaction import cannot be claimed");
     }
 
     @Test
@@ -284,7 +284,7 @@ class TransactionImportTest {
 
         assertThatThrownBy(() -> transactionImport.markFailed(1, 0, 0, "Failure"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("A completed transaction import cannot be failed");
+                .hasMessage("A terminal transaction import cannot be failed");
     }
 
     @Test
@@ -309,5 +309,54 @@ class TransactionImportTest {
         TransactionImport transactionImport = new TransactionImport();
         ReflectionTestUtils.setField(transactionImport, "status", status);
         return transactionImport;
+    }
+
+    @Test
+    void markAbandonedClearsLeaseAndPreservesFailureInformation() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.FAILED);
+        Instant failedAt = Instant.parse("2026-08-14T12:00:00Z");
+
+        ReflectionTestUtils.setField(transactionImport, "processingOwner", PROCESSING_OWNER);
+        ReflectionTestUtils.setField(transactionImport, "processingLeaseExpiresAt", LEASE_EXPIRES_AT);
+        ReflectionTestUtils.setField(transactionImport, "processingFencingToken", 4L);
+        ReflectionTestUtils.setField(transactionImport, "failureSummary", "Permanent failure");
+        ReflectionTestUtils.setField(transactionImport, "completedAt", failedAt);
+
+        transactionImport.markAbandoned();
+
+        assertThat(transactionImport.getStatus()).isEqualTo(TransactionImportStatus.ABANDONED);
+        assertThat(transactionImport.getProcessingOwner()).isNull();
+        assertThat(transactionImport.getProcessingLeaseExpiresAt()).isNull();
+        assertThat(transactionImport.getProcessingFencingToken()).isEqualTo(4);
+        assertThat(transactionImport.getFailureSummary()).isEqualTo("Permanent failure");
+        assertThat(transactionImport.getCompletedAt()).isEqualTo(failedAt);
+    }
+
+    @Test
+    void markAbandonedRejectsImportThatIsNotFailed() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.RUNNING);
+
+        assertThatThrownBy(transactionImport::markAbandoned)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Only a failed transaction import can be abandoned");
+    }
+
+    @Test
+    void claimProcessingLeaseRejectsAbandonedImport() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.ABANDONED);
+
+        assertThatThrownBy(() ->
+                transactionImport.claimProcessingLease(PROCESSING_OWNER, CLAIMED_AT, LEASE_EXPIRES_AT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("A terminal transaction import cannot be claimed");
+    }
+
+    @Test
+    void markFailedRejectsAbandonedImport() {
+        TransactionImport transactionImport = transactionImport(TransactionImportStatus.ABANDONED);
+
+        assertThatThrownBy(() -> transactionImport.markFailed(1, 0, 0, "Failure"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("A terminal transaction import cannot be failed");
     }
 }

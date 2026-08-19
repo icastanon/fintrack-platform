@@ -291,6 +291,24 @@ class TransactionImportRequestedEventListenerTest {
         assertThat(MDC.get("correlationId")).isNull();
     }
 
+    @Test
+    void handleAcknowledgesAbandonedImportWithoutStartingProcessing() {
+        TransactionImportRequestedEvent event = currentEvent();
+
+        when(processingLeaseManager.acquire(event))
+                .thenReturn(TransactionImportProcessingLeaseAcquisition.alreadyAbandoned());
+
+        assertThatCode(() -> listener.handle(event, visibility)).doesNotThrowAnyException();
+
+        verify(processingLeaseManager).acquire(event);
+        verify(transactionImportMetrics).recordAlreadyAbandonedLease();
+        verify(transactionImportMetrics).recordAbandoned();
+        verifyNoMoreInteractions(transactionImportMetrics);
+        verifyNoInteractions(eventProcessor, messageVisibilityHeartbeat, runningHeartbeat, visibility);
+
+        assertThat(MDC.get("correlationId")).isNull();
+    }
+
     private TransactionImportRequestedEvent currentEvent() {
         return TransactionImportRequestedEvent.create(
                 EVENT_ID,

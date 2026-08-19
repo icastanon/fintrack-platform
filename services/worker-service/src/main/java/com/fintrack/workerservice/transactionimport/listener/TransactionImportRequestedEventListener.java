@@ -66,6 +66,7 @@ public class TransactionImportRequestedEventListener {
                 case ALREADY_COMPLETED -> handleAlreadyCompletedImport(event);
                 case ACTIVE_LEASE -> handleActiveLease(event);
                 case ACQUIRED -> handleAcquiredImport(event, visibility, acquisition.getProcessingAttempt());
+                case ALREADY_ABANDONED -> handleAlreadyAbandonedImport(event);
             }
         } catch (UnsupportedTransactionImportRequestedEventVersionException exception) {
             transactionImportMetrics.recordUnsupportedVersion();
@@ -88,6 +89,17 @@ public class TransactionImportRequestedEventListener {
 
         LOGGER.info(
                 "Acknowledging already-completed transaction-import request: eventId={}, importId={}",
+                event.getEventId(),
+                event.getImportId()
+        );
+    }
+
+    private void handleAlreadyAbandonedImport(TransactionImportRequestedEvent event) {
+        transactionImportMetrics.recordAlreadyAbandonedLease();
+        transactionImportMetrics.recordAbandoned();
+
+        LOGGER.info(
+                "Acknowledging abandoned transaction-import request: eventId={}, importId={}",
                 event.getEventId(),
                 event.getImportId()
         );

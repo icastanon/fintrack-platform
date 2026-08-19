@@ -11,7 +11,8 @@ public class TransactionImportProcessingLeaseAcquisition {
     public enum Outcome {
         ACQUIRED,
         ACTIVE_LEASE,
-        ALREADY_COMPLETED
+        ALREADY_COMPLETED,
+        ALREADY_ABANDONED
     }
 
     private final Outcome outcome;
@@ -38,6 +39,13 @@ public class TransactionImportProcessingLeaseAcquisition {
     public static TransactionImportProcessingLeaseAcquisition alreadyCompleted() {
         return new TransactionImportProcessingLeaseAcquisition(
                 Outcome.ALREADY_COMPLETED,
+                null
+        );
+    }
+
+    public static TransactionImportProcessingLeaseAcquisition alreadyAbandoned() {
+        return new TransactionImportProcessingLeaseAcquisition(
+                Outcome.ALREADY_ABANDONED,
                 null
         );
     }

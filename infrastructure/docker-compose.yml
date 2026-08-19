@@ -50,9 +50,11 @@ services:
 
     environment:
       LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?LOCALSTACK_AUTH_TOKEN is required}
+      PERSISTENCE: "1"
 
     volumes:
       - ./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+      - localstack-data:/var/lib/localstack
 
   api:
     build:
@@ -135,3 +137,4 @@ services:
 
 volumes:
   postgres-data:
+  localstack-data:
