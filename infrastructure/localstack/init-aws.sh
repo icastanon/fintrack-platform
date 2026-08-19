@@ -45,6 +45,26 @@ if ! awslocal s3api head-bucket --bucket fintrack-imports > /dev/null 2>&1; then
     awslocal s3api create-bucket --bucket fintrack-imports > /dev/null
 fi
 
+awslocal s3api put-bucket-lifecycle-configuration \
+    --bucket fintrack-imports \
+    --lifecycle-configuration '{
+        "Rules": [
+            {
+                "ID": "expire-fintrack-import-artifacts",
+                "Status": "Enabled",
+                "Filter": {
+                    "Prefix": "imports/"
+                },
+                "Expiration": {
+                    "Days": 90
+                },
+                "AbortIncompleteMultipartUpload": {
+                    "DaysAfterInitiation": 1
+                }
+            }
+        ]
+    }'
+
 configure_main_queue \
     fintrack-transaction-processing \
     fintrack-transaction-processing-dlq
