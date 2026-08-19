@@ -1,6 +1,7 @@
 package com.fintrack.workerservice.transaction.metrics;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,11 @@ class TransactionProcessingMetricsTest {
         metrics = new TransactionProcessingMetrics(meterRegistry);
     }
 
+    @AfterEach
+    void closeMeterRegistry() {
+        meterRegistry.close();
+    }
+
     @Test
     void recordsTransactionProcessingOutcomes() {
         metrics.recordProcessed();
@@ -24,11 +30,13 @@ class TransactionProcessingMetricsTest {
         metrics.recordDuplicate();
         metrics.recordFailed();
         metrics.recordUnsupportedVersion();
+        metrics.recordLockTimeout();
 
         assertThat(messageCount("processed")).isEqualTo(2.0);
         assertThat(messageCount("duplicate")).isEqualTo(1.0);
         assertThat(messageCount("failed")).isEqualTo(1.0);
         assertThat(messageCount("unsupported_version")).isEqualTo(1.0);
+        assertThat(messageCount("lock_timeout")).isEqualTo(1.0);
     }
 
     private double messageCount(String outcome) {
