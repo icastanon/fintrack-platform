@@ -11,6 +11,13 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U fintrack -d fintrack" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
@@ -34,8 +41,97 @@ services:
     ports:
       - "127.0.0.1:4566:4566"
 
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal s3api head-bucket --bucket fintrack-imports > /dev/null 2>&1 && awslocal sqs get-queue-url --queue-name fintrack-transaction-processing > /dev/null 2>&1 && awslocal sqs get-queue-url --queue-name fintrack-import-jobs > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
     environment:
       LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?LOCALSTACK_AUTH_TOKEN is required}
+
+    volumes:
+      - ./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+
+  api:
+    build:
+      context: ..
+      dockerfile: services/api-service/Dockerfile
+
+    image: fintrack-api:local
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: "local,deployment"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fintrack
+      SPRING_DATASOURCE_USERNAME: fintrack
+      SPRING_DATASOURCE_PASSWORD: fintrack
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      SPRING_CLOUD_AWS_SQS_ENDPOINT: http://localstack:4566
+      SPRING_CLOUD_AWS_S3_ENDPOINT: http://localstack:4566
+      FINTRACK_S3_IMPORT_BUCKET: fintrack-imports
+
+      JWT_SECRET: ${JWT_SECRET:-local-development-only-secret-key-at-least-32-characters}
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      FINTRACK_ENVIRONMENT: local-container
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health/readiness > /dev/null" ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+    stop_grace_period: 35s
+
+  worker:
+    build:
+      context: ..
+      dockerfile: services/worker-service/Dockerfile
+
+    image: fintrack-worker:local
+
+    environment:
+      SPRING_PROFILES_ACTIVE: "local,deployment"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fintrack
+      SPRING_DATASOURCE_USERNAME: fintrack
+      SPRING_DATASOURCE_PASSWORD: fintrack
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      SPRING_CLOUD_AWS_SQS_ENDPOINT: http://localstack:4566
+      SPRING_CLOUD_AWS_S3_ENDPOINT: http://localstack:4566
+      FINTRACK_S3_IMPORT_BUCKET: fintrack-imports
+
+      FINTRACK_ENVIRONMENT: local-container
+      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 55s
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+    stop_grace_period: 60s
 
 volumes:
   postgres-data:
