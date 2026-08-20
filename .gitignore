@@ -14,3 +14,17 @@ target/
 .env
 .env.*
 !.env.example
+
+# Terraform generated and local files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
