@@ -151,3 +151,30 @@ resource "aws_iam_role_policy_attachment" "worker_task" {
   role       = aws_iam_role.worker_task.name
   policy_arn = aws_iam_policy.worker_task.arn
 }
+
+data "aws_iam_policy_document" "ecs_task_execution_secrets" {
+  statement {
+    sid     = "ReadFinTrackRuntimeSecrets"
+    actions = ["secretsmanager:GetSecretValue"]
+
+    resources = [
+      aws_db_instance.postgresql.master_user_secret[0].secret_arn,
+      aws_secretsmanager_secret.jwt_signing_key.arn
+    ]
+  }
+}
+
+resource "aws_iam_policy" "ecs_task_execution_secrets" {
+  name        = "${local.resource_prefix}-ecs-task-execution-secrets"
+  description = "Allows ECS to retrieve FinTrack runtime secrets during task startup."
+  policy      = data.aws_iam_policy_document.ecs_task_execution_secrets.json
+
+  tags = {
+    Name = "${local.resource_prefix}-ecs-task-execution-secrets"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_secrets" {
+  role       = aws_iam_role.ecs_task_execution.name
+  policy_arn = aws_iam_policy.ecs_task_execution_secrets.arn
+}
