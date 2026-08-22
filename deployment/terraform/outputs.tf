@@ -178,3 +178,8 @@ output "worker_ecs_service" {
     arn  = aws_ecs_service.worker.id
   }
 }
+
+output "cloudwatch_operations_dashboard" {
+  description = "CloudWatch operations dashboard name."
+  value       = aws_cloudwatch_dashboard.operations.dashboard_name
+}
