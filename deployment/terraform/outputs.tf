@@ -150,3 +150,13 @@ output "worker_task_definition" {
     revision = aws_ecs_task_definition.worker.revision
   }
 }
+
+output "api_load_balancer" {
+  description = "Public API load balancer and target-group details."
+
+  value = {
+    dns_name         = aws_lb.api.dns_name
+    arn              = aws_lb.api.arn
+    target_group_arn = aws_lb_target_group.api.arn
+  }
+}
