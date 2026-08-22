@@ -41,10 +41,10 @@ output "database_connection" {
   description = "Private RDS connection details and managed credential secret."
 
   value = {
-    host                     = aws_db_instance.postgresql.address
-    port                     = aws_db_instance.postgresql.port
-    database_name            = aws_db_instance.postgresql.db_name
-    master_user_secret_arn   = aws_db_instance.postgresql.master_user_secret[0].secret_arn
+    host                   = aws_db_instance.postgresql.address
+    port                   = aws_db_instance.postgresql.port
+    database_name          = aws_db_instance.postgresql.db_name
+    master_user_secret_arn = aws_db_instance.postgresql.master_user_secret[0].secret_arn
   }
 }
 
@@ -101,5 +101,14 @@ output "security_group_ids" {
     worker     = aws_security_group.worker.id
     postgresql = aws_security_group.postgresql.id
     redis      = aws_security_group.redis.id
+  }
+}
+
+output "ecr_repository_urls" {
+  description = "Private ECR repositories used by the FinTrack deployment pipeline."
+
+  value = {
+    for service_name, repository in aws_ecr_repository.service :
+    service_name => repository.repository_url
   }
 }
