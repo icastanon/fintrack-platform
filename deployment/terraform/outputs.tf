@@ -121,3 +121,12 @@ output "ecs_cluster" {
     arn  = aws_ecs_cluster.fintrack.arn
   }
 }
+
+output "ecs_log_group_names" {
+  description = "CloudWatch log groups used by the FinTrack ECS services."
+
+  value = {
+    for service_name, log_group in aws_cloudwatch_log_group.ecs_service :
+    service_name => log_group.name
+  }
+}
