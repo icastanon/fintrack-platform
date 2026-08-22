@@ -160,3 +160,12 @@ output "api_load_balancer" {
     target_group_arn = aws_lb_target_group.api.arn
   }
 }
+
+output "api_ecs_service" {
+  description = "API ECS service running behind the public load balancer."
+
+  value = {
+    name = aws_ecs_service.api.name
+    arn  = aws_ecs_service.api.id
+  }
+}
