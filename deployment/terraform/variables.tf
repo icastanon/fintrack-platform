@@ -58,3 +58,14 @@ variable "api_image_tag" {
     error_message = "api_image_tag must not be blank."
   }
 }
+
+variable "worker_image_tag" {
+  description = "ECR image tag used by the worker ECS task definition."
+  type        = string
+  default     = "bootstrap"
+
+  validation {
+    condition     = length(trimspace(var.worker_image_tag)) > 0
+    error_message = "worker_image_tag must not be blank."
+  }
+}

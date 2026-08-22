@@ -140,3 +140,13 @@ output "api_task_definition" {
     revision = aws_ecs_task_definition.api.revision
   }
 }
+
+output "worker_task_definition" {
+  description = "Worker ECS task definition registered for Fargate."
+
+  value = {
+    family   = aws_ecs_task_definition.worker.family
+    arn      = aws_ecs_task_definition.worker.arn
+    revision = aws_ecs_task_definition.worker.revision
+  }
+}
