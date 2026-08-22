@@ -112,3 +112,12 @@ output "ecr_repository_urls" {
     service_name => repository.repository_url
   }
 }
+
+output "ecs_cluster" {
+  description = "ECS cluster that runs the FinTrack API and worker services."
+
+  value = {
+    name = aws_ecs_cluster.fintrack.name
+    arn  = aws_ecs_cluster.fintrack.arn
+  }
+}
