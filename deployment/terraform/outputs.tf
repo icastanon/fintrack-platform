@@ -169,3 +169,12 @@ output "api_ecs_service" {
     arn  = aws_ecs_service.api.id
   }
 }
+
+output "worker_ecs_service" {
+  description = "Private worker ECS service that processes SQS messages."
+
+  value = {
+    name = aws_ecs_service.worker.name
+    arn  = aws_ecs_service.worker.id
+  }
+}
