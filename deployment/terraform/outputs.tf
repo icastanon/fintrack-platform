@@ -36,3 +36,70 @@ output "private_data_subnet_ids" {
     availability_zone => subnet.id
   }
 }
+
+output "database_connection" {
+  description = "Private RDS connection details and managed credential secret."
+
+  value = {
+    host                     = aws_db_instance.postgresql.address
+    port                     = aws_db_instance.postgresql.port
+    database_name            = aws_db_instance.postgresql.db_name
+    master_user_secret_arn   = aws_db_instance.postgresql.master_user_secret[0].secret_arn
+  }
+}
+
+output "redis_connection" {
+  description = "Private TLS-enabled Redis connection details."
+
+  value = {
+    host = aws_elasticache_replication_group.redis.primary_endpoint_address
+    port = aws_elasticache_replication_group.redis.port
+  }
+}
+
+output "application_queue_urls" {
+  description = "URLs of the FinTrack application queues and their DLQs."
+
+  value = {
+    transaction_processing     = aws_sqs_queue.transaction_processing.url
+    transaction_processing_dlq = aws_sqs_queue.transaction_processing_dlq.url
+    import_jobs                = aws_sqs_queue.import_jobs.url
+    import_jobs_dlq            = aws_sqs_queue.import_jobs_dlq.url
+  }
+}
+
+output "imports_bucket_name" {
+  description = "Name of the private transaction-import S3 bucket."
+  value       = aws_s3_bucket.imports.id
+}
+
+output "runtime_secret_arns" {
+  description = "Secrets injected into FinTrack ECS tasks."
+
+  value = {
+    database_credentials = aws_db_instance.postgresql.master_user_secret[0].secret_arn
+    jwt_signing_key      = aws_secretsmanager_secret.jwt_signing_key.arn
+  }
+}
+
+output "ecs_role_arns" {
+  description = "IAM roles used by the FinTrack ECS tasks."
+
+  value = {
+    task_execution = aws_iam_role.ecs_task_execution.arn
+    api_task       = aws_iam_role.api_task.arn
+    worker_task    = aws_iam_role.worker_task.arn
+  }
+}
+
+output "security_group_ids" {
+  description = "Security groups used by FinTrack infrastructure."
+
+  value = {
+    alb        = aws_security_group.alb.id
+    api        = aws_security_group.api.id
+    worker     = aws_security_group.worker.id
+    postgresql = aws_security_group.postgresql.id
+    redis      = aws_security_group.redis.id
+  }
+}
