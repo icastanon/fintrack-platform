@@ -130,3 +130,13 @@ output "ecs_log_group_names" {
     service_name => log_group.name
   }
 }
+
+output "api_task_definition" {
+  description = "API ECS task definition registered for Fargate."
+
+  value = {
+    family   = aws_ecs_task_definition.api.family
+    arn      = aws_ecs_task_definition.api.arn
+    revision = aws_ecs_task_definition.api.revision
+  }
+}

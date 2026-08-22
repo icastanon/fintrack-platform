@@ -47,3 +47,14 @@ variable "vpc_cidr" {
     error_message = "vpc_cidr must be a valid IPv4 CIDR block."
   }
 }
+
+variable "api_image_tag" {
+  description = "ECR image tag used by the API ECS task definition."
+  type        = string
+  default     = "bootstrap"
+
+  validation {
+    condition     = length(trimspace(var.api_image_tag)) > 0
+    error_message = "api_image_tag must not be blank."
+  }
+}
