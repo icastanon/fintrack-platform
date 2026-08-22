@@ -183,3 +183,8 @@ output "cloudwatch_operations_dashboard" {
   description = "CloudWatch operations dashboard name."
   value       = aws_cloudwatch_dashboard.operations.dashboard_name
 }
+
+output "operations_alert_topic_arn" {
+  description = "SNS topic used by FinTrack operational CloudWatch alarms."
+  value       = aws_sns_topic.operations_alerts.arn
+}

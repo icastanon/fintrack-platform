@@ -69,3 +69,13 @@ variable "worker_image_tag" {
     error_message = "worker_image_tag must not be blank."
   }
 }
+
+variable "operations_notification_email" {
+  description = "Email address that receives FinTrack operational alarm notifications."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@]+@[^@]+\\.[^@]+$", var.operations_notification_email))
+    error_message = "operations_notification_email must be a valid email address."
+  }
+}
