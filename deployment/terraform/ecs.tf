@@ -68,7 +68,8 @@ resource "aws_ecs_task_definition" "api" {
         { name = "FINTRACK_SQS_TRANSACTION_PROCESSING_QUEUE", value = aws_sqs_queue.transaction_processing.name },
         { name = "FINTRACK_SQS_IMPORT_JOBS_QUEUE", value = aws_sqs_queue.import_jobs.name },
         { name = "SPRING_CLOUD_AWS_REGION_STATIC", value = var.aws_region },
-        { name = "JAVA_TOOL_OPTIONS", value = "-XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError" }
+        { name = "JAVA_TOOL_OPTIONS", value = "-XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError" },
+        { name = "FINTRACK_HTTP_TRUST_CLOUDFRONT_VIEWER_ADDRESS", value = "true" },
       ]
 
       secrets = [

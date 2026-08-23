@@ -94,18 +94,32 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push commit-specific images
+      - name: Build or reuse commit-specific images
         id: images
         shell: bash
         run: |
           API_IMAGE="${{ steps.login-ecr.outputs.registry }}/${API_ECR_REPOSITORY}:${GITHUB_SHA}"
           WORKER_IMAGE="${{ steps.login-ecr.outputs.registry }}/${WORKER_ECR_REPOSITORY}:${GITHUB_SHA}"
 
-          docker build --file services/api-service/Dockerfile --tag "$API_IMAGE" .
-          docker build --file services/worker-service/Dockerfile --tag "$WORKER_IMAGE" .
+          if aws ecr describe-images \
+            --repository-name "$API_ECR_REPOSITORY" \
+            --image-ids "imageTag=${GITHUB_SHA}" \
+            --region "$AWS_REGION" > /dev/null 2>&1; then
+            echo "Reusing existing API image: $API_IMAGE"
+          else
+            docker build --file services/api-service/Dockerfile --tag "$API_IMAGE" .
+            docker push "$API_IMAGE"
+          fi
 
-          docker push "$API_IMAGE"
-          docker push "$WORKER_IMAGE"
+          if aws ecr describe-images \
+            --repository-name "$WORKER_ECR_REPOSITORY" \
+            --image-ids "imageTag=${GITHUB_SHA}" \
+            --region "$AWS_REGION" > /dev/null 2>&1; then
+            echo "Reusing existing worker image: $WORKER_IMAGE"
+          else
+            docker build --file services/worker-service/Dockerfile --tag "$WORKER_IMAGE" .
+            docker push "$WORKER_IMAGE"
+          fi
 
           echo "api_image=$API_IMAGE" >> "$GITHUB_OUTPUT"
           echo "worker_image=$WORKER_IMAGE" >> "$GITHUB_OUTPUT"
