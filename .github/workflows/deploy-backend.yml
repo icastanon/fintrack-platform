@@ -60,6 +60,8 @@ jobs:
           cache: maven
 
       - name: Run complete Maven verification
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
         run: ./mvnw -B verify
 
   deploy:
