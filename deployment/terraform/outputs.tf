@@ -198,3 +198,12 @@ output "github_actions_deploy_role_arn" {
   description = "IAM role assumed by the FinTrack GitHub Actions deployment workflow."
   value       = aws_iam_role.github_actions_deploy.arn
 }
+
+output "cloudfront_distribution" {
+  description = "CloudFront distribution serving the frontend and proxying backend routes."
+
+  value = {
+    id          = aws_cloudfront_distribution.frontend.id
+    domain_name = aws_cloudfront_distribution.frontend.domain_name
+  }
+}
