@@ -1,3 +1,7 @@
+data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
 resource "aws_security_group" "alb" {
   name        = "${local.resource_prefix}-alb-sg"
   description = "Controls traffic for the public FinTrack ALB."
@@ -51,11 +55,11 @@ resource "aws_security_group" "redis" {
 resource "aws_vpc_security_group_ingress_rule" "alb_http" {
   security_group_id = aws_security_group.alb.id
 
-  description = "Allow public HTTP traffic."
-  cidr_ipv4   = "0.0.0.0/0"
-  from_port   = 80
-  ip_protocol = "tcp"
-  to_port     = 80
+  description    = "Allow HTTP traffic from CloudFront origin-facing servers."
+  prefix_list_id = data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id
+  from_port      = 80
+  ip_protocol    = "tcp"
+  to_port        = 80
 }
 
 resource "aws_vpc_security_group_egress_rule" "alb_to_api" {
