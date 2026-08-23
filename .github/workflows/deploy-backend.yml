@@ -51,6 +51,42 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Determine services to deploy
+        id: changes
+        shell: bash
+        run: |
+          DEPLOY_API=false
+          DEPLOY_WORKER=false
+          BEFORE_SHA="${{ github.event.before }}"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "$BEFORE_SHA" =~ ^0+$ ]]; then
+            DEPLOY_API=true
+            DEPLOY_WORKER=true
+          else
+            CHANGED_FILES="$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")"
+            echo "$CHANGED_FILES"
+
+            if grep -Eq '^(event-contracts/|pom\.xml$|\.mvn/|mvnw|\.github/workflows/deploy-backend\.yml$)' <<< "$CHANGED_FILES"; then
+              DEPLOY_API=true
+              DEPLOY_WORKER=true
+            else
+              if grep -q '^services/api-service/' <<< "$CHANGED_FILES"; then
+                DEPLOY_API=true
+              fi
+
+              if grep -q '^services/worker-service/' <<< "$CHANGED_FILES"; then
+                DEPLOY_WORKER=true
+              fi
+            fi
+          fi
+
+          echo "deploy_api=$DEPLOY_API" >> "$GITHUB_OUTPUT"
+          echo "deploy_worker=$DEPLOY_WORKER" >> "$GITHUB_OUTPUT"
+          echo "Deploy API: $DEPLOY_API"
+          echo "Deploy worker: $DEPLOY_WORKER"
 
       - name: Set up Java 21
         uses: actions/setup-java@v5
@@ -97,34 +133,44 @@ jobs:
       - name: Build or reuse commit-specific images
         id: images
         shell: bash
+        env:
+          DEPLOY_API: ${{ steps.changes.outputs.deploy_api }}
+          DEPLOY_WORKER: ${{ steps.changes.outputs.deploy_worker }}
         run: |
-          API_IMAGE="${{ steps.login-ecr.outputs.registry }}/${API_ECR_REPOSITORY}:${GITHUB_SHA}"
-          WORKER_IMAGE="${{ steps.login-ecr.outputs.registry }}/${WORKER_ECR_REPOSITORY}:${GITHUB_SHA}"
+          if [[ "$DEPLOY_API" == "true" ]]; then
+            API_IMAGE="${{ steps.login-ecr.outputs.registry }}/${API_ECR_REPOSITORY}:${GITHUB_SHA}"
 
-          if aws ecr describe-images \
-            --repository-name "$API_ECR_REPOSITORY" \
-            --image-ids "imageTag=${GITHUB_SHA}" \
-            --region "$AWS_REGION" > /dev/null 2>&1; then
-            echo "Reusing existing API image: $API_IMAGE"
-          else
-            docker build --file services/api-service/Dockerfile --tag "$API_IMAGE" .
-            docker push "$API_IMAGE"
+            if aws ecr describe-images \
+              --repository-name "$API_ECR_REPOSITORY" \
+              --image-ids "imageTag=${GITHUB_SHA}" \
+              --region "$AWS_REGION" > /dev/null 2>&1; then
+              echo "Reusing existing API image: $API_IMAGE"
+            else
+              docker build --file services/api-service/Dockerfile --tag "$API_IMAGE" .
+              docker push "$API_IMAGE"
+            fi
+
+            echo "api_image=$API_IMAGE" >> "$GITHUB_OUTPUT"
           fi
 
-          if aws ecr describe-images \
-            --repository-name "$WORKER_ECR_REPOSITORY" \
-            --image-ids "imageTag=${GITHUB_SHA}" \
-            --region "$AWS_REGION" > /dev/null 2>&1; then
-            echo "Reusing existing worker image: $WORKER_IMAGE"
-          else
-            docker build --file services/worker-service/Dockerfile --tag "$WORKER_IMAGE" .
-            docker push "$WORKER_IMAGE"
-          fi
+          if [[ "$DEPLOY_WORKER" == "true" ]]; then
+            WORKER_IMAGE="${{ steps.login-ecr.outputs.registry }}/${WORKER_ECR_REPOSITORY}:${GITHUB_SHA}"
 
-          echo "api_image=$API_IMAGE" >> "$GITHUB_OUTPUT"
-          echo "worker_image=$WORKER_IMAGE" >> "$GITHUB_OUTPUT"
+            if aws ecr describe-images \
+              --repository-name "$WORKER_ECR_REPOSITORY" \
+              --image-ids "imageTag=${GITHUB_SHA}" \
+              --region "$AWS_REGION" > /dev/null 2>&1; then
+              echo "Reusing existing worker image: $WORKER_IMAGE"
+            else
+              docker build --file services/worker-service/Dockerfile --tag "$WORKER_IMAGE" .
+              docker push "$WORKER_IMAGE"
+            fi
+
+            echo "worker_image=$WORKER_IMAGE" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Download current API task definition
+        if: steps.changes.outputs.deploy_api == 'true'
         run: |
           aws ecs describe-task-definition \
             --task-definition "$API_TASK_DEFINITION_FAMILY" \
@@ -132,6 +178,7 @@ jobs:
             --output json > api-task-definition.json
 
       - name: Insert API image into task definition
+        if: steps.changes.outputs.deploy_api == 'true'
         id: render-api
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -142,6 +189,7 @@ jobs:
             FINTRACK_HTTP_TRUST_CLOUDFRONT_VIEWER_ADDRESS=true
 
       - name: Deploy API service
+        if: steps.changes.outputs.deploy_api == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-api.outputs.task-definition }}
@@ -150,6 +198,7 @@ jobs:
           wait-for-service-stability: true
 
       - name: Smoke-test API readiness
+        if: steps.changes.outputs.deploy_api == 'true'
         run: |
           curl --fail \
             --silent \
@@ -160,6 +209,7 @@ jobs:
             "${{ vars.API_BASE_URL }}/actuator/health/readiness"
 
       - name: Download current worker task definition
+        if: steps.changes.outputs.deploy_worker == 'true'
         run: |
           aws ecs describe-task-definition \
             --task-definition "$WORKER_TASK_DEFINITION_FAMILY" \
@@ -167,6 +217,7 @@ jobs:
             --output json > worker-task-definition.json
 
       - name: Insert worker image into task definition
+        if: steps.changes.outputs.deploy_worker == 'true'
         id: render-worker
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -175,6 +226,7 @@ jobs:
           image: ${{ steps.images.outputs.worker_image }}
 
       - name: Deploy worker service
+        if: steps.changes.outputs.deploy_worker == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-worker.outputs.task-definition }}
