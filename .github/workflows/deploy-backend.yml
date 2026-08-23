@@ -48,6 +48,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    outputs:
+      deploy_api: ${{ steps.changes.outputs.deploy_api }}
+      deploy_worker: ${{ steps.changes.outputs.deploy_worker }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -134,8 +138,8 @@ jobs:
         id: images
         shell: bash
         env:
-          DEPLOY_API: ${{ steps.changes.outputs.deploy_api }}
-          DEPLOY_WORKER: ${{ steps.changes.outputs.deploy_worker }}
+          DEPLOY_API: ${{ needs.verify.outputs.deploy_api }}
+          DEPLOY_WORKER: ${{ needs.verify.outputs.deploy_worker }}
         run: |
           if [[ "$DEPLOY_API" == "true" ]]; then
             API_IMAGE="${{ steps.login-ecr.outputs.registry }}/${API_ECR_REPOSITORY}:${GITHUB_SHA}"
@@ -170,7 +174,7 @@ jobs:
           fi
 
       - name: Download current API task definition
-        if: steps.changes.outputs.deploy_api == 'true'
+        if: needs.verify.outputs.deploy_api == 'true'
         run: |
           aws ecs describe-task-definition \
             --task-definition "$API_TASK_DEFINITION_FAMILY" \
@@ -178,7 +182,7 @@ jobs:
             --output json > api-task-definition.json
 
       - name: Insert API image into task definition
-        if: steps.changes.outputs.deploy_api == 'true'
+        if: needs.verify.outputs.deploy_api == 'true'
         id: render-api
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -189,7 +193,7 @@ jobs:
             FINTRACK_HTTP_TRUST_CLOUDFRONT_VIEWER_ADDRESS=true
 
       - name: Deploy API service
-        if: steps.changes.outputs.deploy_api == 'true'
+        if: needs.verify.outputs.deploy_api == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-api.outputs.task-definition }}
@@ -198,7 +202,7 @@ jobs:
           wait-for-service-stability: true
 
       - name: Smoke-test API readiness
-        if: steps.changes.outputs.deploy_api == 'true'
+        if: needs.verify.outputs.deploy_api == 'true'
         run: |
           curl --fail \
             --silent \
@@ -209,7 +213,7 @@ jobs:
             "${{ vars.API_BASE_URL }}/actuator/health/readiness"
 
       - name: Download current worker task definition
-        if: steps.changes.outputs.deploy_worker == 'true'
+        if: needs.verify.outputs.deploy_worker == 'true'
         run: |
           aws ecs describe-task-definition \
             --task-definition "$WORKER_TASK_DEFINITION_FAMILY" \
@@ -217,7 +221,7 @@ jobs:
             --output json > worker-task-definition.json
 
       - name: Insert worker image into task definition
-        if: steps.changes.outputs.deploy_worker == 'true'
+        if: needs.verify.outputs.deploy_worker == 'true'
         id: render-worker
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -226,7 +230,7 @@ jobs:
           image: ${{ steps.images.outputs.worker_image }}
 
       - name: Deploy worker service
-        if: steps.changes.outputs.deploy_worker == 'true'
+        if: needs.verify.outputs.deploy_worker == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-worker.outputs.task-definition }}
