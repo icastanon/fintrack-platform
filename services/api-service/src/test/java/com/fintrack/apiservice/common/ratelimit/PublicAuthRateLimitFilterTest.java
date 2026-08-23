@@ -40,9 +40,12 @@ class PublicAuthRateLimitFilterTest {
     void setUp() {
         JsonMapper jsonMapper = JsonMapper.builder().findAndAddModules().build();
 
+        ClientIpAddressResolver clientIpAddressResolver = new ClientIpAddressResolver(false);
+
         filter = new PublicAuthRateLimitFilter(
                 rateLimiter,
                 jsonMapper,
+                clientIpAddressResolver,
                 LOGIN_LIMIT,
                 LOGIN_WINDOW,
                 REGISTRATION_LIMIT,

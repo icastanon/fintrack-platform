@@ -14,10 +14,12 @@ public class RateLimitConfiguration {
     @Bean
     public FilterRegistrationBean<PublicAuthRateLimitFilter> publicAuthRateLimitFilter(RedisFixedWindowRateLimiter rateLimiter,
                                                                                        JsonMapper jsonMapper,
+                                                                                       ClientIpAddressResolver clientIpAddressResolver,
                                                                                        RateLimitProperties properties) {
         PublicAuthRateLimitFilter filter = new PublicAuthRateLimitFilter(
                 rateLimiter,
                 jsonMapper,
+                clientIpAddressResolver,
                 properties.getLoginLimit(),
                 properties.getLoginWindow(),
                 properties.getRegistrationLimit(),

@@ -35,14 +35,18 @@ public class PublicAuthRateLimitFilter extends OncePerRequestFilter {
     private final int registrationLimit;
     private final Duration registrationWindow;
 
+    private final ClientIpAddressResolver clientIpAddressResolver;
+
     public PublicAuthRateLimitFilter(RedisFixedWindowRateLimiter rateLimiter,
                                      JsonMapper jsonMapper,
+                                     ClientIpAddressResolver clientIpAddressResolver,
                                      int loginLimit,
                                      Duration loginWindow,
                                      int registrationLimit,
                                      Duration registrationWindow) {
         this.rateLimiter = rateLimiter;
         this.jsonMapper = jsonMapper;
+        this.clientIpAddressResolver = clientIpAddressResolver;
         this.loginLimit = loginLimit;
         this.loginWindow = loginWindow;
         this.registrationLimit = registrationLimit;
@@ -68,7 +72,7 @@ public class PublicAuthRateLimitFilter extends OncePerRequestFilter {
         String operation = loginRequest ? "login" : "registration";
         int limit = loginRequest ? loginLimit : registrationLimit;
         Duration window = loginRequest ? loginWindow : registrationWindow;
-        String key = KEY_PREFIX + operation + ":" + request.getRemoteAddr();
+        String key = KEY_PREFIX + operation + ":" + clientIpAddressResolver.resolve(request);
 
         RateLimitDecision decision;
 
