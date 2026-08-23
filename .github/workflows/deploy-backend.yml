@@ -138,6 +138,8 @@ jobs:
           task-definition: api-task-definition.json
           container-name: ${{ env.API_CONTAINER_NAME }}
           image: ${{ steps.images.outputs.api_image }}
+          environment-variables: |
+            FINTRACK_HTTP_TRUST_CLOUDFRONT_VIEWER_ADDRESS=true
 
       - name: Deploy API service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
