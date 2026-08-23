@@ -188,3 +188,13 @@ output "operations_alert_topic_arn" {
   description = "SNS topic used by FinTrack operational CloudWatch alarms."
   value       = aws_sns_topic.operations_alerts.arn
 }
+
+output "github_actions_oidc_provider_arn" {
+  description = "GitHub Actions OIDC identity-provider ARN."
+  value       = aws_iam_openid_connect_provider.github_actions.arn
+}
+
+output "github_actions_deploy_role_arn" {
+  description = "IAM role assumed by the FinTrack GitHub Actions deployment workflow."
+  value       = aws_iam_role.github_actions_deploy.arn
+}

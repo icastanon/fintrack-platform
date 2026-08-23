@@ -79,3 +79,31 @@ variable "operations_notification_email" {
     error_message = "operations_notification_email must be a valid email address."
   }
 }
+
+variable "github_repository_owner" {
+  description = "GitHub owner of the FinTrack repository."
+  type        = string
+  default     = "icastanon"
+}
+
+variable "github_repository_name" {
+  description = "GitHub repository containing the FinTrack monorepo."
+  type        = string
+  default     = "fintrack-platform"
+}
+
+variable "github_repository_owner_id" {
+  description = "Immutable numeric GitHub repository-owner ID."
+  type        = string
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric GitHub repository ID."
+  type        = string
+}
+
+variable "github_deployment_branch" {
+  description = "Git branch authorized to deploy FinTrack."
+  type        = string
+  default     = "main"
+}
