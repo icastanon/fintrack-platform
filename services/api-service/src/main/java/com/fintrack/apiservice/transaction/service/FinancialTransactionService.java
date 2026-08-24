@@ -17,6 +17,7 @@ import com.fintrack.apiservice.transaction.exception.FinancialTransactionNotFoun
 import com.fintrack.apiservice.transaction.exception.FinancialTransactionVersionConflictException;
 import com.fintrack.apiservice.transaction.mapper.FinancialTransactionMapper;
 import com.fintrack.apiservice.transaction.repository.FinancialTransactionRepository;
+import com.fintrack.apiservice.transaction.repository.FinancialTransactionSpecifications;
 import com.fintrack.eventcontracts.TransactionProcessingReason;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -106,14 +107,8 @@ public class FinancialTransactionService {
 
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), sort);
 
-        Page<FinancialTransaction> transactionPage = transactionRepository.findAllByFilters(
-                userId,
-                filter.getAccountId(),
-                filter.getCategoryId(),
-                filter.getTransactionType(),
-                filter.getProcessingStatus(),
-                filter.getFromDate(),
-                filter.getToDate(),
+        Page<FinancialTransaction> transactionPage = transactionRepository.findAll(
+                FinancialTransactionSpecifications.matches(userId, filter),
                 pageable
         );
 

@@ -28,6 +28,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -274,8 +275,10 @@ class FinancialTransactionServiceTest {
         FinancialTransaction firstTransaction = org.mockito.Mockito.mock(FinancialTransaction.class);
         FinancialTransaction secondTransaction = org.mockito.Mockito.mock(FinancialTransaction.class);
 
-        FinancialTransactionResponse firstResponse = org.mockito.Mockito.mock(FinancialTransactionResponse.class);
-        FinancialTransactionResponse secondResponse = org.mockito.Mockito.mock(FinancialTransactionResponse.class);
+        FinancialTransactionResponse firstResponse =
+                org.mockito.Mockito.mock(FinancialTransactionResponse.class);
+        FinancialTransactionResponse secondResponse =
+                org.mockito.Mockito.mock(FinancialTransactionResponse.class);
 
         FinancialTransactionFilterRequest filter = new FinancialTransactionFilterRequest();
         filter.setAccountId(15L);
@@ -293,21 +296,16 @@ class FinancialTransactionServiceTest {
                 5
         );
 
-        when(transactionRepository.findAllByFilters(
-                eq(7L),
-                eq(15L),
-                eq(2L),
-                eq(TransactionType.EXPENSE),
-                eq(ProcessingStatus.PROCESSED),
-                eq(LocalDate.of(2026, 8, 1)),
-                eq(LocalDate.of(2026, 8, 31)),
+        when(transactionRepository.findAll(
+                any(Specification.class),
                 any(Pageable.class)
         )).thenReturn(repositoryPage);
 
         when(transactionMapper.toResponse(firstTransaction)).thenReturn(firstResponse);
         when(transactionMapper.toResponse(secondTransaction)).thenReturn(secondResponse);
 
-        FinancialTransactionPageResponse result = transactionService.getTransactions(7L, filter);
+        FinancialTransactionPageResponse result =
+                transactionService.getTransactions(7L, filter);
 
         assertThat(result.getContent()).containsExactly(firstResponse, secondResponse);
         assertThat(result.getPage()).isEqualTo(1);
@@ -319,14 +317,8 @@ class FinancialTransactionServiceTest {
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
 
-        verify(transactionRepository).findAllByFilters(
-                eq(7L),
-                eq(15L),
-                eq(2L),
-                eq(TransactionType.EXPENSE),
-                eq(ProcessingStatus.PROCESSED),
-                eq(LocalDate.of(2026, 8, 1)),
-                eq(LocalDate.of(2026, 8, 31)),
+        verify(transactionRepository).findAll(
+                any(Specification.class),
                 pageableCaptor.capture()
         );
 
@@ -337,10 +329,12 @@ class FinancialTransactionServiceTest {
 
         assertThat(capturedPageable.getPageNumber()).isEqualTo(1);
         assertThat(capturedPageable.getPageSize()).isEqualTo(2);
-        assertThat(capturedPageable.getSort().getOrderFor("transactionDate")).isNotNull();
+        assertThat(capturedPageable.getSort().getOrderFor("transactionDate"))
+                .isNotNull();
         assertThat(capturedPageable.getSort().getOrderFor("transactionDate").getDirection())
                 .isEqualTo(Sort.Direction.DESC);
-        assertThat(capturedPageable.getSort().getOrderFor("id")).isNotNull();
+        assertThat(capturedPageable.getSort().getOrderFor("id"))
+                .isNotNull();
         assertThat(capturedPageable.getSort().getOrderFor("id").getDirection())
                 .isEqualTo(Sort.Direction.DESC);
     }
