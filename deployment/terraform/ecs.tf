@@ -57,6 +57,7 @@ resource "aws_ecs_task_definition" "api" {
       ]
 
       environment = [
+        { name = "CORS_ALLOWED_ORIGINS", value = "http://localhost:5173,https://${aws_cloudfront_distribution.frontend.domain_name}" },
         { name = "SPRING_PROFILES_ACTIVE", value = "deployment" },
         { name = "FINTRACK_ENVIRONMENT", value = var.environment },
         { name = "SPRING_DATASOURCE_URL", value = "jdbc:postgresql://${aws_db_instance.postgresql.address}:${aws_db_instance.postgresql.port}/${aws_db_instance.postgresql.db_name}" },

@@ -30,6 +30,27 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_function" "frontend_spa_rewrite" {
+  name    = "${local.resource_prefix}-frontend-spa-rewrite"
+  runtime = "cloudfront-js-2.0"
+  comment = "Routes React SPA paths to index.html."
+  publish = true
+
+  code = <<-JAVASCRIPT
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+    var lastSegment = uri.substring(uri.lastIndexOf("/") + 1);
+
+    if (!lastSegment.includes(".")) {
+        request.uri = "/index.html";
+    }
+
+    return request;
+}
+JAVASCRIPT
+}
+
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -62,6 +83,11 @@ resource "aws_cloudfront_distribution" "frontend" {
     cached_methods         = ["GET", "HEAD", "OPTIONS"]
     cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
     compress               = true
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.frontend_spa_rewrite.arn
+    }
   }
 
   dynamic "ordered_cache_behavior" {
