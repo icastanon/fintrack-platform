@@ -1,0 +1,41 @@
+.notification-navigation-badge {
+  min-width: 23px;
+  height: 23px;
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--color-navy-950);
+  background: #ffffff;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 780;
+  line-height: 1;
+}
+
+.navigation-link--active .notification-navigation-badge {
+  color: #ffffff;
+  background: var(--color-blue-600);
+}
+
+.mobile-notification-link {
+  position: relative;
+}
+
+.mobile-notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  color: #ffffff;
+  background: #c43f50;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  line-height: 1;
+}

@@ -1,0 +1,515 @@
+.imports-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(330px, 0.65fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.import-upload-card,
+.import-lookup-card,
+.import-format-card,
+.import-status-card {
+  overflow: hidden;
+}
+
+.import-card-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--color-blue-600);
+  background: var(--color-blue-100);
+  border-radius: 9px;
+}
+
+.import-form {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.import-file-picker {
+  min-height: 122px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 21px;
+  color: var(--color-heading);
+  background: #f8faff;
+  border: 1px dashed #aebde2;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.import-file-picker:hover {
+  background: #f2f6ff;
+  border-color: var(--color-blue-600);
+}
+
+.import-file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.import-file-picker__icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--color-blue-600);
+  background: #ffffff;
+  border: 1px solid #dbe4f6;
+  border-radius: 11px;
+}
+
+.import-file-picker__copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.import-file-picker__copy strong {
+  overflow: hidden;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-file-picker__copy small {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.import-submit {
+  width: fit-content;
+}
+
+.import-submit:disabled,
+.import-lookup-form .button:disabled,
+.import-status-card__actions .button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.imports-side-column {
+  display: grid;
+  gap: 20px;
+}
+
+.import-lookup-form {
+  display: grid;
+  gap: 16px;
+  padding: 21px 22px 23px;
+}
+
+.import-lookup-form .button {
+  width: fit-content;
+}
+
+.import-format-card {
+  padding: 22px;
+}
+
+.import-format-card__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 17px;
+  color: var(--color-blue-600);
+}
+
+.import-format-card__heading h2 {
+  margin-bottom: 4px;
+  color: var(--color-heading);
+  font-size: 0.96rem;
+}
+
+.import-format-card__heading p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.import-format-card__code {
+  display: block;
+  overflow-x: auto;
+  padding: 13px;
+  color: #173c99;
+  background: #eef3ff;
+  border: 1px solid #d9e4ff;
+  border-radius: 8px;
+  font-size: 0.71rem;
+  line-height: 1.55;
+  white-space: nowrap;
+}
+
+.import-format-card__example {
+  margin: 13px 0 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.import-empty-state {
+  min-height: 330px;
+}
+
+.import-status-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.import-status-card__identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.import-status-card__identity > div {
+  min-width: 0;
+}
+
+.import-status-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+}
+
+.import-status-icon--queued,
+.import-status-icon--running {
+  color: #2458d3;
+  background: #e8efff;
+}
+
+.import-status-icon--completed {
+  color: #16805b;
+  background: #e4f5ee;
+}
+
+.import-status-icon--failed,
+.import-status-icon--abandoned {
+  color: #b73949;
+  background: #fcebed;
+}
+
+.import-status-card__title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.import-status-card__title h2 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-heading);
+  font-size: 1.08rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-status-card__identity p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.import-status-badge {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 720;
+}
+
+.import-status-badge--queued,
+.import-status-badge--running {
+  color: #174ab9;
+  background: #e8efff;
+}
+
+.import-status-badge--completed {
+  color: #126444;
+  background: #e4f5ee;
+}
+
+.import-status-badge--failed,
+.import-status-badge--abandoned {
+  color: #9f2f3d;
+  background: #fcebed;
+}
+
+.import-status-card__actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 9px;
+}
+
+.import-status-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.import-status-summary div {
+  display: grid;
+  gap: 5px;
+  padding: 19px 22px;
+  border-right: 1px solid var(--color-border);
+}
+
+.import-status-summary div:last-child {
+  border-right: 0;
+}
+
+.import-status-summary strong {
+  color: var(--color-heading);
+  font-size: 1.3rem;
+}
+
+.import-status-summary span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+
+.import-progress-section {
+  padding: 22px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.import-progress-section__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 11px;
+  color: var(--color-text);
+  font-size: 0.78rem;
+}
+
+.import-progress-section__heading strong {
+  color: var(--color-heading);
+}
+
+.import-progress-track {
+  height: 8px;
+  overflow: hidden;
+  background: #e5eaf4;
+  border-radius: 999px;
+}
+
+.import-progress-track span {
+  height: 100%;
+  display: block;
+  background: var(--color-blue-600);
+  border-radius: inherit;
+  transition: width 300ms ease;
+}
+
+.import-progress-track--indeterminate span {
+  width: 38% !important;
+  animation: import-progress 1.3s ease-in-out infinite;
+}
+
+.import-inline-message,
+.import-failure-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 19px 22px 0;
+  padding: 13px 14px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.import-inline-message--error,
+.import-failure-summary {
+  color: #9f2f3d;
+  background: #fcebed;
+  border: 1px solid #f0c5ca;
+}
+
+.import-inline-message svg,
+.import-failure-summary svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.import-failure-summary div {
+  display: grid;
+  gap: 4px;
+}
+
+.import-failure-summary p {
+  margin: 0;
+}
+
+.import-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 21px 22px 23px;
+}
+
+.import-metadata-grid div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 11px 15px;
+  border-left: 2px solid #e3e9f4;
+}
+
+.import-metadata-grid span {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.import-metadata-grid strong {
+  overflow: hidden;
+  color: var(--color-heading);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-icon--spinning {
+  animation: import-spin 750ms linear infinite;
+}
+
+@keyframes import-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes import-progress {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(285%);
+  }
+}
+
+@media (max-width: 1050px) {
+  .imports-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .imports-side-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .import-status-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .import-status-summary div:nth-child(3) {
+    border-right: 0;
+  }
+
+  .import-status-summary div:nth-child(-n + 3) {
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+@media (max-width: 760px) {
+  .imports-side-column {
+    grid-template-columns: 1fr;
+  }
+
+  .import-status-card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .import-status-card__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .import-status-card__actions .button {
+    flex: 1;
+  }
+
+  .import-status-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .import-status-summary div {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .import-status-summary div:nth-child(odd) {
+    border-right: 1px solid var(--color-border);
+  }
+
+  .import-status-summary div:nth-child(even) {
+    border-right: 0;
+  }
+
+  .import-status-summary div:last-child {
+    border-bottom: 0;
+  }
+
+  .import-metadata-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .import-form,
+  .import-lookup-form,
+  .import-format-card,
+  .import-status-card__header,
+  .import-progress-section,
+  .import-metadata-grid {
+    padding-right: 17px;
+    padding-left: 17px;
+  }
+
+  .import-file-picker {
+    align-items: flex-start;
+  }
+
+  .import-submit,
+  .import-lookup-form .button {
+    width: 100%;
+  }
+
+  .import-status-card__title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .import-status-card__actions {
+    flex-direction: column;
+  }
+
+  .import-status-summary div {
+    padding: 16px 17px;
+  }
+
+  .import-metadata-grid {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+}
