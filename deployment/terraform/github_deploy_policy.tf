@@ -64,6 +64,40 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       values   = ["ecs-tasks.amazonaws.com"]
     }
   }
+
+  statement {
+    sid = "ListFrontendBucket"
+
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListBucket"
+    ]
+
+    resources = [aws_s3_bucket.frontend.arn]
+  }
+
+  statement {
+    sid = "DeployFrontendObjects"
+
+    actions = [
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:PutObject"
+    ]
+
+    resources = ["${aws_s3_bucket.frontend.arn}/*"]
+  }
+
+  statement {
+    sid = "RefreshFrontendDistribution"
+
+    actions = [
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation"
+    ]
+
+    resources = [aws_cloudfront_distribution.frontend.arn]
+  }
 }
 
 resource "aws_iam_policy" "github_actions_deploy" {
