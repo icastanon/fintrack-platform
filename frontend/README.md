@@ -1,75 +1,54 @@
-# React + TypeScript + Vite
+# FinTrack Reference Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This directory contains the lightweight React and TypeScript client used to demonstrate and manually exercise the FinTrack backend.
 
-Currently, two official plugins are available:
+The frontend supports the project’s backend workflows but is not FinTrack’s primary contribution or architectural focus.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Run the frontend locally
 
-## React Compiler
+Requirements:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js 22
+- npm
+- access to either a local or deployed FinTrack API
 
-## Expanding the ESLint configuration
+Install the dependencies:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm ci
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The Vite development server forwards relative `/api` requests to the backend configured through `VITE_API_PROXY_TARGET`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+If `frontend/.env.local` already exists, keep it and verify that it points to the backend you intend to use.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+To use a locally running API:
 
+```properties
+VITE_API_PROXY_TARGET=http://localhost:8080
 ```
+
+To use the deployed API:
+
+```properties
+VITE_API_PROXY_TARGET=https://your-cloudfront-domain.cloudfront.net
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Then open `http://localhost:5173`.
+
+## Verify changes
+
+Run:
+
+```bash
+npm run lint
+npm run build
+```
+
+For complete project setup and troubleshooting, see the [local development guide](../docs/getting-started/local-development.md).

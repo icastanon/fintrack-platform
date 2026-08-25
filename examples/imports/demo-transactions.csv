@@ -1,0 +1,9 @@
+transaction_date,transaction_type,amount,merchant,description
+2026-08-01,INCOME,4200.00,Direct Deposit,Monthly salary
+2026-08-02,EXPENSE,1450.00,Apartment Rent,August rent
+2026-08-04,EXPENSE,138.42,Publix,Weekly groceries
+2026-08-06,EXPENSE,64.80,Duke Energy,Electric bill
+2026-08-08,EXPENSE,42.15,Shell,Fuel
+2026-08-11,EXPENSE,78.35,Chipotle,Dinner
+2026-08-13,EXPENSE,15.99,Netflix,Monthly subscription
+2026-08-15,EXPENSE,96.20,Whole Foods,Weekly groceries
