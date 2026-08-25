@@ -1,13 +1,13 @@
 # FinTrack
 
-An open-source, event-driven personal finance platform built with Java 21, Spring Boot, Spring Security, Spring Batch, PostgreSQL, Redis, Amazon SQS, and AWS.
+An open-source, event-driven personal finance platform built with Java 21 and Spring Boot. It combines Spring Security, Spring Batch, PostgreSQL, Redis, Amazon SQS, and Amazon S3 across Docker and LocalStack development and a Terraform-defined AWS deployment.
 
 [![Backend workflow](https://github.com/icastanon/fintrack-platform/actions/workflows/deploy-backend.yml/badge.svg)](https://github.com/icastanon/fintrack-platform/actions/workflows/deploy-backend.yml)
 [![Frontend workflow](https://github.com/icastanon/fintrack-platform/actions/workflows/deploy-frontend.yml/badge.svg)](https://github.com/icastanon/fintrack-platform/actions/workflows/deploy-frontend.yml)
 
 FinTrack lets users manage financial accounts, record transactions, import CSV files, track monthly budgets, review spending summaries, and receive budget notifications.
 
-Under the hood, FinTrack brings together REST API design, Spring Security and token lifecycle management, PostgreSQL data modeling and transactional consistency, Redis-backed rate limiting, asynchronous SQS workflows, restartable Spring Batch processing, concurrency and failure recovery, automated testing, and observability. Docker, Terraform, GitHub Actions, and AWS provide the project’s local development, infrastructure, deployment, and operational layers.
+Under the hood, FinTrack brings together REST API design, Spring Security, JWT access tokens and rotating refresh-token lifecycle management, PostgreSQL data modeling and transactional consistency, Redis-backed rate limiting, S3-backed CSV storage, asynchronous SQS workflows, restartable Spring Batch processing, concurrency and failure recovery, automated testing, and observability. Docker, Terraform, GitHub Actions, and AWS provide the project’s local development, infrastructure, deployment, and operational layers.
 
 A lightweight React client is included to demonstrate and manually exercise the backend.
 

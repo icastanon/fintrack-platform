@@ -2,7 +2,7 @@
 
 Thank you for considering a contribution to FinTrack.
 
-FinTrack primarily welcomes meaningful Java and Spring Boot contributions involving security, persistence, messaging, batch processing, reliability, observability, and AWS infrastructure. The reference frontend exists to demonstrate the backend and is not the project’s main contribution focus.
+FinTrack primarily welcomes meaningful Java and Spring Boot contributions involving security, persistence, messaging, batch processing, reliability, observability, and AWS infrastructure. The React reference frontend demonstrates backend workflows. Focused frontend fixes and improvements are also welcome, but contributors working on backend issues are not expected to modify it.
 
 You do not need AWS experience or an AWS account for most backend contributions. PostgreSQL, Redis, S3-compatible storage, and SQS-compatible queues can all run locally through Docker Compose and LocalStack.
 
@@ -201,7 +201,7 @@ During development, you may run focused tests from IntelliJ or through an indivi
 
 ## Verify frontend changes
 
-The frontend is a reference interface for demonstrating backend functionality. Change it only when the contribution requires corresponding user interaction.
+The frontend is a reference interface for demonstrating backend functionality. Focused frontend fixes and improvements are welcome when proposed independently, but backend contributions do not require corresponding frontend changes.
 
 If your change affects `frontend/`, run:
 
@@ -212,7 +212,7 @@ npm run lint
 npm run build
 ```
 
-Frontend architecture work is outside the project’s primary contribution focus.
+Discuss substantial frontend architecture changes in an issue before implementation.
 
 ## Infrastructure contributions
 

@@ -65,7 +65,6 @@ The design must define key ownership, request fingerprinting, stored response be
 
 - Add a paginated `GET /api/v1/imports?page=0&size=10` endpoint scoped to the authenticated user.
 - Expose import identity for imported transactions so API and UI consumers can trace a transaction to its source import.
-- Add the corresponding reference-frontend views needed to demonstrate the backend workflow.
 
 This work improves usability now and establishes source identity needed by future ingestion providers.
 
@@ -147,7 +146,7 @@ This milestone should create only the provider-neutral boundaries required by th
 - Map its external accounts to canonical FinTrack accounts.
 - Perform the initial transaction synchronization.
 - Process subsequent webhook-driven updates through the existing API, worker, PostgreSQL, outbox, and SQS architecture.
-- Display connection and synchronization status through the API and reference frontend.
+- Expose connection and synchronization status through authenticated API endpoints.
 - Demonstrate recovery from a duplicate webhook, repeated synchronization request, and interrupted synchronization attempt.
 
 The Sandbox milestone is complete only when the same external transaction is never duplicated, provider modifications and removals converge correctly, manual overrides survive synchronization, and connection failures are visible and recoverable.
@@ -207,7 +206,7 @@ The following choices are intentional and should not be filed as defects without
 - Do not introduce per-account currencies or aggregate unlike currencies without an exchange-rate model.
 - Do not claim exactly-once delivery from SQS.
 - Do not mark reliability work complete without failure-path verification.
-- Do not create frontend-only roadmap work unless it exposes or demonstrates a backend capability.
+- Do not make frontend changes a completion requirement for backend roadmap issues; focused frontend proposals remain welcome separately.
 
 ## Contribution focus
 
@@ -219,7 +218,7 @@ FinTrack’s contribution catalog should remain primarily Java and Spring orient
 - 5% AWS and Terraform;
 - 5% documentation and contributor experience.
 
-The frontend remains maintained, but it is not a separate feature track.
+The frontend remains maintained, and focused frontend contributions are welcome, but it is not a required part of backend issues or a separate roadmap feature track.
 
 Implementation issues should identify both difficulty and learning area.
 
