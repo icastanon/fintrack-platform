@@ -16,6 +16,7 @@ A lightweight React client is included to demonstrate and manually exercise the 
 - [Open FinTrack](https://d239jpeymow4m4.cloudfront.net)
 - [Explore the API with Swagger UI](https://d239jpeymow4m4.cloudfront.net/swagger-ui/index.html)
 - [Read the documentation](docs/README.md)
+- [Watch the 90-second FinTrack demo](https://youtu.be/6Lymb5cT8I0)
 
 ![FinTrack dashboard showing account balances, monthly summaries, categorized transactions, budgets, and notifications](docs/images/fintrack-dashboard.png)
 
