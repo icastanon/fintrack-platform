@@ -1,0 +1,79 @@
+name: Feature or architecture proposal
+description: Propose a product improvement, engineering change, or architectural direction
+title: "[Proposal] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping FinTrack evolve. Describe the problem and desired outcome before prescribing a specific implementation.
+
+        For substantial changes, review the public roadmap and architecture documentation first. Do not include credentials, private financial data, or other sensitive information.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of FinTrack would this proposal affect most?
+      options:
+        - Accounts or transactions
+        - Budgets or financial summaries
+        - CSV imports or Spring Batch
+        - Authentication or security
+        - Messaging, reliability, or recovery
+        - Connected accounts or provider ingestion
+        - Observability or operations
+        - AWS infrastructure or deployment
+        - Reference frontend
+        - Documentation or contributor experience
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What user, contributor, or operational problem should be addressed?
+      placeholder: Explain who is affected, what is difficult today, and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should become possible or meaningfully better?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Suggested scope
+      description: Describe what should be included and any behavior that should deliberately remain outside this proposal.
+
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Correctness and design considerations
+      description: Note relevant effects on financial correctness, ownership, security, retries, idempotency, data migration, infrastructure, or recurring cost.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe simpler approaches, workarounds, or tradeoffs you have considered.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for similar proposals.
+          required: true
+        - label: I reviewed the public roadmap and relevant documentation.
+          required: true
+        - label: I removed secrets, credentials, and private financial information.
+          required: true
