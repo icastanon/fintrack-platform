@@ -86,7 +86,7 @@ FinTrack contains two independently deployable Spring Boot applications within o
 
 The services intentionally share one PostgreSQL database. This keeps transactional business rules practical for the current system while leaving explicit boundaries for future extraction if independent service ownership becomes justified.
 
-![FinTrack application architecture](docs/images/application-architecture.svg)
+![FinTrack application architecture](docs/images/application-architecture.png)
 
 Read the [Architecture overview](docs/architecture/overview.md) for component responsibilities, runtime dependencies, and primary data flows.
 

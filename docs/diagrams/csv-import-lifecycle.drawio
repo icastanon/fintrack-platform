@@ -1,0 +1,402 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="LwmlfmQgp6B43cuqhWit">
+    <mxGraphModel dx="1414" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2336" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=24;fontStyle=1" value="FinTrack CSV Import Lifecycle" vertex="1">
+          <mxGeometry height="30" width="370" x="642" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-2" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="&lt;font style=&quot;font-size: 17px;&quot;&gt;Web Client&lt;/font&gt;" vertex="1">
+          <mxGeometry height="1080" width="140" x="80" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-3" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="&lt;font style=&quot;font-size: 17px;&quot;&gt;API Service&lt;/font&gt;" vertex="1">
+          <mxGeometry height="1080" width="140" x="350" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-4" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="&lt;font style=&quot;font-size: 17px;&quot;&gt;Amazon SQS&lt;/font&gt;" vertex="1">
+          <mxGeometry height="1080" width="140" x="1170" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-5" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="&lt;font style=&quot;font-size: 17px;&quot;&gt;Worker Service&lt;/font&gt;" vertex="1">
+          <mxGeometry height="1080" width="140" x="1430" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-6" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="&lt;font style=&quot;font-size: 17px;&quot;&gt;PostgreSQL&lt;/font&gt;" vertex="1">
+          <mxGeometry height="1080" width="140" x="910" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-7" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="&lt;font style=&quot;font-size: 17px;&quot;&gt;Amazon S3&lt;/font&gt;" vertex="1">
+          <mxGeometry height="1080" width="120" x="630" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-8" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="150" y="160" as="sourcePoint" />
+            <mxPoint x="419.5" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-16" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-8" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;code&gt;&lt;font face=&quot;Helvetica&quot; style=&quot;font-size: 13px;&quot;&gt;POST /api/v1/imports &lt;br&gt;(accountId + CSV)&lt;/font&gt;&lt;/code&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.295" y="2" as="geometry">
+            <mxPoint x="35" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-9" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="420" y="180" as="sourcePoint" />
+            <mxPoint x="689.5" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-17" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-9" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;code&gt;&lt;font face=&quot;Helvetica&quot; style=&quot;font-size: 13px;&quot;&gt;Stream source CSV&lt;/font&gt;&lt;/code&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.0239" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-12" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="690" y="210" as="sourcePoint" />
+            <mxPoint x="420" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-18" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-12" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Source object key&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="0.0875" y="2" as="geometry">
+            <mxPoint y="-2" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-13" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="419.9966666666665" y="249.99999999999977" as="sourcePoint" />
+            <mxPoint x="980.33" y="249.99999999999977" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-19" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-13" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;code&gt;&lt;font face=&quot;Helvetica&quot; style=&quot;font-size: 13px;&quot;&gt;Create &lt;br&gt;QUEUED import + &lt;br&gt;outbox event (atomic)&lt;/font&gt;&lt;/code&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.5228" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-14" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="980" y="290" as="sourcePoint" />
+            <mxPoint x="418.96153846153857" y="289.9999999999998" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-20" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-14" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;code&gt;&lt;font face=&quot;Helvetica&quot; style=&quot;font-size: 13px;&quot;&gt;Import record&lt;/font&gt;&lt;/code&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4215" y="1" as="geometry">
+            <mxPoint x="3" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-15" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="420" y="310" as="sourcePoint" />
+            <mxPoint x="149.16666666666674" y="310" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-21" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-15" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;code&gt;&lt;font style=&quot;font-size: 13px;&quot; face=&quot;Helvetica&quot;&gt;202 Accepted + import ID&lt;/font&gt;&lt;/code&gt;" vertex="1">
+          <mxGeometry relative="1" x="0.0523" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-22" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="420" y="340" as="sourcePoint" />
+            <mxPoint x="979.5" y="340" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-23" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-22" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Scheduled outbox relay: &lt;br&gt;claim pending event&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.5699" y="4" as="geometry">
+            <mxPoint x="20" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-24" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="980" y="380" as="sourcePoint" />
+            <mxPoint x="419.1666666666665" y="380" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-25" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-24" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Claimed import event&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4639" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-26" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="417" y="410" as="sourcePoint" />
+            <mxPoint x="1236.5" y="410" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-27" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-26" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Publish import-requested event&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.7128" y="-1" as="geometry">
+            <mxPoint x="23" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-28" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1235.83" y="440" as="sourcePoint" />
+            <mxPoint x="414.9966666666665" y="440" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-29" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-28" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Publication confirmed&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.6759" y="-2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-30" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="420" y="480" as="sourcePoint" />
+            <mxPoint x="979.5" y="480" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-31" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-30" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Mark outbox event PUBLISHED&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.5079" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-32" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1240" y="510" as="sourcePoint" />
+            <mxPoint x="1499.5" y="510" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-33" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-32" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Deliver event (at least once)&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.0315" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-35" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500.42" y="540" as="sourcePoint" />
+            <mxPoint x="979.5866666666665" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-36" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-35" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Acquire import processing lease&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.351" y="1" as="geometry">
+            <mxPoint x="39" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-37" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="980.25" y="580" as="sourcePoint" />
+            <mxPoint x="1499.75" y="580" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-38" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-37" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Lease owner + fencing tokern&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.5265" as="geometry">
+            <mxPoint x="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-40" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500" y="610" as="sourcePoint" />
+            <mxPoint x="689.1666666666665" y="610" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-41" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-40" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Open source CSV stream&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.6489" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-42" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="690" y="640" as="sourcePoint" />
+            <mxPoint x="1499.5" y="640" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-43" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-42" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Source CSV rows&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.6879" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-44" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" target="CvzBmRbJUwkpkGfCBrqI-6" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500" y="670" as="sourcePoint" />
+            <mxPoint x="1550" y="620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-45" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-44" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Create or recover &lt;br&gt;Spring Batch execution metadata&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4893" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-46" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500.58" y="790" as="sourcePoint" />
+            <mxPoint x="979.4133333333331" y="790" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-47" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-46" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Commit valid chunks: &lt;br&gt;transactions + balance changes&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4534" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-48" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500.5" y="840" as="sourcePoint" />
+            <mxPoint x="979.5" y="840" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-49" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-48" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Evaluate budgets + &lt;br&gt;create notifications&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4534" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-50" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500.5" y="880" as="sourcePoint" />
+            <mxPoint x="979.5" y="880" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-51" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-50" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;span style=&quot;font-size: 13px;&quot;&gt;Save checkpoints +&lt;br&gt;stage rejected rows&lt;/span&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4534" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-52" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500" y="910" as="sourcePoint" />
+            <mxPoint x="689.1666666666665" y="910" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-53" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-52" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Upload rejected-row CSV, if needed&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.6851" y="-2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-54" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="690" y="940" as="sourcePoint" />
+            <mxPoint x="1499.5" y="940" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-55" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-54" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Rejected-output object key&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.6813" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-56" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500.42" y="970" as="sourcePoint" />
+            <mxPoint x="979.5866666666665" y="970" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-57" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-56" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Finalize COMPLETED + &lt;br&gt;counts + processed event (atomic)&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4534" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-58" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="980.25" y="1000" as="sourcePoint" />
+            <mxPoint x="1499.75" y="1000" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-59" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-58" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Completion committed&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.5419" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-60" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500.42" y="1020" as="sourcePoint" />
+            <mxPoint x="1238.8333333333335" y="1020" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-61" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-60" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Successful return &lt;br&gt;acknowledges message&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.433" y="-1" as="geometry">
+            <mxPoint x="-57" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-62" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1500.5800000000002" y="710" as="sourcePoint" />
+            <mxPoint x="979.413333333333" y="710" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-63" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-62" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Periodically renew processing lease&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4278" as="geometry">
+            <mxPoint x="9" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-64" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1501.17" y="750" as="sourcePoint" />
+            <mxPoint x="1240.0033333333336" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-65" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-64" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Then extend message visibility&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="0.0403" y="1" as="geometry">
+            <mxPoint x="7" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-66" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="152.25" y="1060" as="sourcePoint" />
+            <mxPoint x="419.5" y="1060" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-67" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-66" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;GET /api/v1/imports/{importId}&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.1213" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-68" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" target="CvzBmRbJUwkpkGfCBrqI-6" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="420" y="1080" as="sourcePoint" />
+            <mxPoint x="470" y="1030" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-69" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-68" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;Read import status + counts&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.5365" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-70" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;" target="CvzBmRbJUwkpkGfCBrqI-3" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="980" y="1110" as="sourcePoint" />
+            <mxPoint x="1030" y="1060" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-71" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-70" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;COMPLETED + &lt;br&gt;counts + rejected-output availability&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.4544" y="-1" as="geometry">
+            <mxPoint x="13" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-72" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;startArrow=classic;startFill=1;endFill=0;dashed=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="150" y="1140" as="sourcePoint" />
+            <mxPoint x="419.5" y="1140" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-73" connectable="0" parent="CvzBmRbJUwkpkGfCBrqI-72" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;200 OK + import result&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.0823" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-74" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#94A3B8;" value="&lt;font style=&quot;font-size: 17px; color: rgb(51, 65, 85);&quot;&gt;While the job runs, the heartbeat renews the database lease before extending SQS visibility. Every chunk commit verifies the processing owner and fencing token.&lt;/font&gt;" vertex="1">
+          <mxGeometry height="210" width="210" x="1690" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-75" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;b&gt;&lt;font style=&quot;font-size: 17px; color: rgb(51, 65, 85);&quot;&gt;Processing safety&lt;/font&gt;&lt;/b&gt;" vertex="1">
+          <mxGeometry height="190" width="190" x="1700" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-76" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#94A3B8;" value="&lt;font style=&quot;font-size: 17px; color: rgb(51, 65, 85);&quot;&gt;Interrupted or failed work remains retryable. Spring Batch checkpoints, leases, fencing, and at-least-once delivery protect restarts. Repeated failures may reach the DLQ.&lt;/font&gt;" vertex="1">
+          <mxGeometry height="210" width="210" x="1690" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-77" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;b&gt;&lt;font style=&quot;font-size: 17px; color: rgb(51, 65, 85);&quot;&gt;Failure and recovery&lt;/font&gt;&lt;/b&gt;" vertex="1">
+          <mxGeometry height="190" width="190" x="1700" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-78" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;strokeColor=#475569;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1700" y="624.55" as="sourcePoint" />
+            <mxPoint x="1770" y="624.55" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-79" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#475569;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1700" y="684.55" as="sourcePoint" />
+            <mxPoint x="1770" y="684.55" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-80" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Solid arrows: request, write, or direct action&lt;/font&gt;" vertex="1">
+          <mxGeometry height="30" width="110" x="1770" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="CvzBmRbJUwkpkGfCBrqI-81" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Dashed arrows: response or acknowledgement&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="110" x="1770" y="670" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

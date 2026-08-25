@@ -15,7 +15,7 @@ The services communicate through immutable event contracts and Amazon SQS. They 
 
 PostgreSQL is the authoritative system of record. Redis, SQS, and S3 support specialized runtime behavior but do not replace the database as the source of truth.
 
-![FinTrack application architecture](../images/application-architecture.svg)
+![FinTrack application architecture](../images/application-architecture.png)
 
 The editable diagrams.net source is available in [`application-architecture.drawio`](../diagrams/application-architecture.drawio).
 
@@ -136,6 +136,10 @@ When a user overrides the category of an already processed transaction, the API 
 The worker preserves the manual override, reevaluates the affected budget, and relies on database uniqueness constraints to prevent duplicate historical notifications.
 
 ### CSV import processing
+
+![FinTrack CSV import lifecycle](../images/csv-import-lifecycle.png)
+
+The editable diagrams.net source is available in [`csv-import-lifecycle.drawio`](../diagrams/csv-import-lifecycle.drawio).
 
 1. The API validates the file, account ownership, content type, size, and basic upload requirements.
 2. The source CSV is streamed to a private S3 object.
