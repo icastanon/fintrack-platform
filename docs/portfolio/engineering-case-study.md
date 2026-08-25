@@ -148,10 +148,11 @@ The network foundation demonstrates how higher availability could be added, but 
 FinTrack does not present itself as a production banking platform. Current gaps include:
 
 - no idempotency key for manual transaction creation;
-- no paginated import-history workflow or complete public transaction/import provenance;
+- no paginated import-history workflow or complete public transaction/import origin tracking;
 - no automatic reconciliation between DLQ arrival and transaction or import terminal state;
 - no cleanup of expired or revoked refresh-token rows;
 - no cleanup of old successfully published outbox rows;
+- no cleanup of old transaction-import source or rejected-output S3 objects;
 - no recurring budget templates;
 - no email verification, password-recovery, or change-password workflow;
 - no external email delivery for persistent application notifications;

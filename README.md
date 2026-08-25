@@ -14,9 +14,9 @@ A lightweight React client is included to demonstrate and manually exercise the 
 ## Live project
 
 - [Open FinTrack](https://d239jpeymow4m4.cloudfront.net)
+- [Watch the 90-second FinTrack demo](https://youtu.be/6Lymb5cT8I0)
 - [Explore the API with Swagger UI](https://d239jpeymow4m4.cloudfront.net/swagger-ui/index.html)
 - [Read the documentation](docs/README.md)
-- [Watch the 90-second FinTrack demo](https://youtu.be/6Lymb5cT8I0)
 
 ![FinTrack dashboard showing account balances, monthly summaries, categorized transactions, budgets, and notifications](docs/images/fintrack-dashboard.png)
 
@@ -299,7 +299,7 @@ Current limitations include:
 - the hosted AWS environment prioritizes cost control over full multi-AZ redundancy;
 - the reference frontend exists to demonstrate backend functionality rather than define a frontend architecture.
 
-The [public roadmap](docs/roadmap.md) will describe the incremental path toward a more practical, user-facing financial application.
+The [public roadmap](docs/roadmap.md) describes the incremental path toward a more practical, user-facing financial application.
 
 ## License
 

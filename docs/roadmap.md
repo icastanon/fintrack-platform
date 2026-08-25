@@ -74,6 +74,7 @@ This work improves usability now and establishes source identity needed by futur
 
 - Delete expired and revoked refresh-token rows through a bounded scheduled cleanup workflow.
 - Delete old successfully published outbox events without removing records still needed for investigation or retry.
+- Delete expired transaction-import source and rejected-output S3 objects through a bounded, retryable workflow while preserving import history and explicit artifact-expiration state.
 - Define safe retention for consumer-idempotency records before adding any cleanup for them.
 - Reconcile transaction and import domain status when messages exhaust retries or are moved to a DLQ.
 - Provide an explicit operational recovery or redrive procedure for terminal messaging failures.
@@ -161,7 +162,7 @@ Plaid integration should begin inside the existing API and worker applications. 
 - Evolve categorization into an explainable layered pipeline:
     - normalize merchant text and support canonical merchant identities and aliases;
     - define precedence among system rules, user rules, provider-supplied classifications, and manual overrides;
-    - record categorization provenance and confidence when applicable;
+    - record the categorization source and confidence when applicable;
     - measure unmatched and manually corrected transactions;
     - allow users to create optional rules from manual corrections;
     - defer machine-learning classification until measured unmatched and correction rates show that deterministic rules and provider enrichment are insufficient.

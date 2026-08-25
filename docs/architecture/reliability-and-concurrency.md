@@ -244,6 +244,7 @@ The following limitations must not be described as solved:
 - Manual transaction creation is not yet idempotent at the HTTP boundary.
 - DLQ arrival does not automatically reconcile transaction or import status.
 - Published outbox rows do not yet have a retention cleanup workflow.
+- Transaction-import source and rejected-output S3 objects do not yet have a retention cleanup workflow.
 - Expired and revoked refresh-token rows do not yet have a retention cleanup workflow.
 - Permanently failed outbox events require investigation and do not automatically recreate their domain workflow.
 - SQS provides at-least-once delivery; FinTrack does not claim exactly-once message delivery.
