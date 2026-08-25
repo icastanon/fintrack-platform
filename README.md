@@ -299,3 +299,7 @@ Current limitations include:
 - the reference frontend exists to demonstrate backend functionality rather than define a frontend architecture.
 
 The [public roadmap](docs/roadmap.md) will describe the incremental path toward a more practical, user-facing financial application.
+
+## License
+
+FinTrack is licensed under the [Apache License 2.0](LICENSE).

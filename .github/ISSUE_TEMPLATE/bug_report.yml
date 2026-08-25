@@ -1,0 +1,95 @@
+name: Bug report
+description: Report a reproducible problem with FinTrack
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve FinTrack. Please describe the problem clearly and include only the information needed to reproduce it.
+
+        Do not include passwords, tokens, credentials, private financial data, or other sensitive information.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of FinTrack appears to be affected?
+      options:
+        - API service
+        - Worker service or asynchronous processing
+        - CSV import or Spring Batch
+        - Authentication or authorization
+        - Database or migrations
+        - Local development setup
+        - AWS deployment or infrastructure
+        - Reference frontend
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that reproduces the problem.
+      placeholder: |
+        1. Start...
+        2. Send or select...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Local development
+        - Hosted AWS environment
+        - Both
+        - Other or unknown
+    validations:
+      required: true
+
+  - type: input
+    id: revision
+    attributes:
+      label: Version or commit
+      description: Provide the commit SHA, branch, or release version when known.
+      placeholder: For example, main at abc1234
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Relevant evidence
+      description: Add sanitized logs, error responses, screenshots, or failing-test output.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I removed secrets, credentials, and private financial information.
+          required: true

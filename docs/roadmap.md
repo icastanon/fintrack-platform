@@ -8,7 +8,7 @@ The roadmap communicates direction rather than delivery dates. GitHub Issues are
 
 FinTrack’s progression is:
 
-> trustworthy manual tracking → convenient automation → connected accounts → mature personal-finance platform
+> trustworthy manual and CSV tracking → provider-ready ingestion → connected accounts → mature personal-finance platform
 
 Work should improve real user workflows while preserving financial correctness, security, recoverability, and clear architectural boundaries.
 
@@ -19,13 +19,14 @@ The project will alternate practical product work with targeted foundation work.
 Roadmap work is prioritized using the following rules:
 
 1. Protect correctness of balances, transactions, imports, budgets, authentication, and ownership.
-2. Complete existing manual and CSV workflows before introducing bank synchronization.
-3. Prefer changes that make the application more usable while creating meaningful Java and Spring contribution opportunities.
-4. Add architectural safeguards when they protect a real boundary or known future requirement.
-5. Keep PostgreSQL authoritative and make cross-system workflows explicitly retryable and observable.
-6. Require evidence before optimizing storage, concurrency, or infrastructure.
-7. Avoid new services, queues, or databases unless ownership, security, scaling, or operational behavior genuinely requires them.
-8. Document accepted limitations instead of presenting a cost-conscious development deployment as fully production-ready.
+2. Bring manual and CSV workflows to a defined reliable baseline before bank synchronization; do not require every source-specific enhancement to be completed first.
+3. Treat manual entry, CSV imports, and future financial-data providers as ingestion paths into one canonical account and transaction model.
+4. Prefer changes that make the application more usable while creating meaningful Java and Spring contribution opportunities.
+5. Add architectural safeguards when they protect a real boundary or known future requirement.
+6. Keep PostgreSQL authoritative and make cross-system workflows explicitly retryable and observable.
+7. Require evidence before optimizing storage, concurrency, or infrastructure.
+8. Avoid new services, queues, or databases unless ownership, security, scaling, or operational behavior genuinely requires them.
+9. Document accepted limitations instead of presenting a cost-conscious development deployment as fully production-ready.
 
 ## Current foundation
 
@@ -51,6 +52,8 @@ This foundation is functional and portfolio-ready, but it is not yet a complete 
 The near-term goal is to make manual tracking and CSV imports safer, easier to understand, and practical for regular use.
 
 Items are listed in recommended implementation order. Each item should become one or more focused GitHub Issues before implementation.
+
+Manual transaction idempotency, import provenance, and terminal-state reconciliation define the minimum reliability baseline before provider ingestion. Recurring budgets, authentication usability, notification delivery, and focused architecture guardrails remain valuable, but they are not all prerequisites for beginning the next milestone. Product and foundation work may alternate.
 
 ### 1. Manual transaction request idempotency
 
@@ -108,36 +111,69 @@ Introduce ArchUnit only after the boundaries it will enforce are documented and 
 
 The goal is regression protection, not architecture theater or a large collection of brittle style rules.
 
-## Next — convenience, correctness, and bank-sync preparation
+## Next — provider-neutral ingestion and Plaid Sandbox
 
-After the existing workflows are complete and reliable, focus on deeper day-to-day usefulness and provider-neutral ingestion foundations.
+After the manual and CSV reliability baseline is complete, build one thin, end-to-end connected-account workflow using Plaid Sandbox.
 
+This milestone should create only the provider-neutral boundaries required by the first working integration. It should not build a speculative multi-provider framework or introduce another deployable service.
+
+### 1. Canonical ingestion boundaries
+
+- Treat manual entry, CSV import, and provider synchronization as adapters into the canonical FinTrack account and transaction model.
+- Add provider-neutral connection, external-account, and source-transaction identities mapped to stable internal IDs.
+- Keep Plaid-specific payloads and identifiers outside core financial entities except through explicit provider mappings.
+- Define separate balance semantics for manually maintained accounts and provider-reported balance snapshots.
+- Define which fields users may change on provider-originated transactions and how local annotations and category overrides survive provider updates.
+
+### 2. Secure connection lifecycle
+
+- Create authenticated link-token endpoints and exchange temporary public tokens only on the backend.
+- Encrypt stored provider access tokens and prevent tokens from appearing in API responses, logs, events, or frontend storage.
+- Model connection health, consent state, reconnect or update mode, disconnection, and deletion.
+- Prevent duplicate connections from creating duplicated accounts, transactions, or unnecessary provider cost.
+
+### 3. Idempotent synchronization
+
+- Persist incoming webhooks through an authenticated, idempotent inbox before processing them asynchronously.
+- Store a durable synchronization cursor for each provider connection.
+- Reconcile added, modified, removed, pending, and posted provider transactions.
+- Enforce uniqueness using provider connection and external transaction identity.
+- Make retries, partial failures, cursor advancement, and recovery observable and testable.
+- Preserve manual category overrides when provider data changes.
+
+### 4. Plaid Sandbox vertical slice
+
+- Connect one Plaid Sandbox Item through Link.
+- Map its external accounts to canonical FinTrack accounts.
+- Perform the initial transaction synchronization.
+- Process subsequent webhook-driven updates through the existing API, worker, PostgreSQL, outbox, and SQS architecture.
+- Display connection and synchronization status through the API and reference frontend.
+- Demonstrate recovery from a duplicate webhook, repeated synchronization request, and interrupted synchronization attempt.
+
+The Sandbox milestone is complete only when the same external transaction is never duplicated, provider modifications and removals converge correctly, manual overrides survive synchronization, and connection failures are visible and recoverable.
+
+Plaid integration should begin inside the existing API and worker applications. A separate ingestion service or database should be introduced only after ownership, security, deployment, or scaling evidence justifies it.
+
+## After the Plaid foundation — convenience and product depth
+
+- Promote the Plaid integration beyond Sandbox only after reviewing token security, webhook authenticity, consent and deletion behavior, provider errors, operational monitoring, and recurring cost.
 - Evolve categorization into an explainable layered pipeline:
     - normalize merchant text and support canonical merchant identities and aliases;
     - define precedence among system rules, user rules, provider-supplied classifications, and manual overrides;
     - record categorization provenance and confidence when applicable;
     - measure unmatched and manually corrected transactions;
-    - allow users to create optional rules from manual corrections.
+    - allow users to create optional rules from manual corrections;
     - defer machine-learning classification until measured unmatched and correction rates show that deterministic rules and provider enrichment are insufficient.
-- Transaction search and CSV export.
-- Supported transaction corrections, deletions, refunds, transfers, and split transactions with explicit balance and budget semantics.
-- Recurring transaction and subscription detection.
-- Budget rollover, comparisons, and richer planning views.
-- Data export and account-deletion workflows.
-- Provider-neutral external-account and source-transaction identity.
-- Encrypted provider-token storage boundaries.
-- Idempotent webhook inbox and sync cursors.
-- Connection health, reconnect state, and observable sync history.
+- Add transaction search and CSV export.
+- Support transaction corrections, refunds, transfers, and split transactions with explicit balance and budget semantics.
+- Define different correction and deletion behavior for manual, imported, and provider-originated transactions.
+- Add recurring transaction and subscription detection.
+- Add budget rollover, comparisons, and richer planning views.
+- Add complete data export and account-deletion workflows, including connected-account data.
 
-Bank-sync preparation may begin inside the existing API and worker applications. It should not automatically create a third deployable service.
+## Later — broader product and operational maturity
 
-## Later — connected accounts and broader product capabilities
-
-- Integrate Plaid or another first financial-data provider.
-- Implement provider link-token and public-token exchange flows.
-- Process provider webhooks and incremental synchronization.
-- Reconcile pending, posted, modified, and removed provider transactions.
-- Support multiple financial-data providers behind stable internal ingestion contracts.
+- Support additional financial-data providers behind stable internal ingestion contracts.
 - Add true transaction-level multi-currency accounting using explicit exchange-rate snapshots.
 - Add savings goals, sinking funds, subscription management, and unusual-spending insights.
 - Explore shared household finances and stronger administrative capabilities.
