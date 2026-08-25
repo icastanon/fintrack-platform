@@ -17,6 +17,8 @@ Before starting substantial work:
 
 Small bug fixes, focused tests, and clear documentation corrections may be submitted directly when their intent is unambiguous.
 
+Suspected security vulnerabilities must not be reported in a public issue. Follow the [security policy](SECURITY.md) and use GitHub private vulnerability reporting.
+
 Suggestions are welcome. You may open an issue to propose features, challenge an architectural decision, suggest roadmap changes, or identify an area that should be simplified.
 
 ## Choose a contribution
@@ -44,6 +46,14 @@ More advanced contributions may involve:
 - AWS infrastructure and deployment automation.
 
 The [public roadmap](docs/roadmap.md) describes the project’s planned direction. GitHub Issues are the source of truth for specific work that is ready to be implemented.
+
+Issue metadata helps contributors choose appropriate work:
+
+- `good first issue` identifies a bounded, well-defined task suitable for someone learning the relevant part of FinTrack;
+- `help wanted` identifies work the maintainer has intentionally opened to contributors;
+- `area:*` labels identify the affected technical area.
+
+Each implementation issue also identifies its expected experience level and learning areas. The [contribution-level guide](docs/roadmap.md#contribution-focus) explains the project’s Focused, Intermediate, and Advanced levels.
 
 ## Set up the project
 

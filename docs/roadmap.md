@@ -4,6 +4,8 @@ This roadmap describes how FinTrack will evolve from a trustworthy manual and CS
 
 The roadmap communicates direction rather than delivery dates. GitHub Issues are the source of truth for implementation-ready tasks, ownership, acceptance criteria, and current progress.
 
+Implementation-ready work is grouped in the [Now milestone](https://github.com/icastanon/fintrack-platform/milestone/1) and the [Next milestone](https://github.com/icastanon/fintrack-platform/milestone/2).
+
 ## Product direction
 
 FinTrack’s progression is:
@@ -51,9 +53,9 @@ This foundation is functional and portfolio-ready, but it is not yet a complete 
 
 The near-term goal is to make manual tracking and CSV imports safer, easier to understand, and practical for regular use.
 
-Items are listed in recommended implementation order. Each item should become one or more focused GitHub Issues before implementation.
+Items are listed in recommended implementation order and are represented by one or more focused GitHub Issues. Issue status and implementation details remain authoritative on GitHub.
 
-Manual transaction idempotency, import provenance, and terminal-state reconciliation define the minimum reliability baseline before provider ingestion. Recurring budgets, authentication usability, notification delivery, and focused architecture guardrails remain valuable, but they are not all prerequisites for beginning the next milestone. Product and foundation work may alternate.
+Manual transaction idempotency, import origin, and terminal-state reconciliation define the minimum reliability baseline before provider ingestion. Recurring budgets, authentication usability, notification delivery, and focused architecture guardrails remain valuable, but they are not all prerequisites for beginning the next milestone. Product and foundation work may alternate.
 
 ### 1. Manual transaction request idempotency
 
@@ -61,7 +63,7 @@ Accept an idempotency key when creating a manual transaction and ensure a client
 
 The design must define key ownership, request fingerprinting, stored response behavior, expiration, concurrency handling, and conflict responses.
 
-### 2. Import history and transaction provenance
+### 2. Import history and transaction origin
 
 - Add a paginated `GET /api/v1/imports?page=0&size=10` endpoint scoped to the authenticated user.
 - Expose import identity for imported transactions so API and UI consumers can trace a transaction to its source import.
