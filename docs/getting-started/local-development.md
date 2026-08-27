@@ -139,6 +139,19 @@ Verify the API:
 - Swagger UI: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 - Readiness: [http://localhost:8080/actuator/health/readiness](http://localhost:8080/actuator/health/readiness)
 
+#### Authenticate requests in Swagger UI
+
+Registration and login are public, but most FinTrack endpoints require a JWT access token.
+
+1. Open Swagger UI.
+2. Use `POST /api/v1/auth/register` to create an account if needed.
+3. Use `POST /api/v1/auth/login` with the username and password.
+4. Copy the `accessToken` from the response.
+5. Select **Authorize** at the top of Swagger UI.
+6. Paste the access token into the `bearerAuth` field and select **Authorize**.
+
+Paste only the token. Swagger UI adds the `Bearer` prefix automatically. You can now call the protected endpoints as that user.
+
 ### 4. Run the worker service
 
 After the API has completed its Flyway migrations, create another IntelliJ Spring Boot run configuration with:

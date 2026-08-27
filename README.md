@@ -177,7 +177,7 @@ docker compose \
 
 After startup:
 
-- API: [http://localhost:8080](http://localhost:8080)
+- API base URL: `http://localhost:8080` (the root path does not serve a public page)
 - Swagger UI: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 - Readiness: [http://localhost:8080/actuator/health/readiness](http://localhost:8080/actuator/health/readiness)
 
