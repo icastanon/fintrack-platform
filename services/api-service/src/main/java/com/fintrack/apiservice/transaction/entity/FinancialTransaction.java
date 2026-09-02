@@ -70,6 +70,12 @@ public class FinancialTransaction {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "import_id")
+    private Long importId;
+
+    @Column(name = "import_row_number")
+    private Integer importRowNumber;
+
     public static FinancialTransaction createManual(
             FinancialAccount account,
             TransactionType transactionType,
@@ -91,6 +97,8 @@ public class FinancialTransaction {
         transaction.processingStatus = ProcessingStatus.PENDING;
         transaction.source = TransactionSource.MANUAL;
         transaction.manualCategoryOverride = false;
+        transaction.importId = null;
+        transaction.importRowNumber = 0;
 
         return transaction;
     }

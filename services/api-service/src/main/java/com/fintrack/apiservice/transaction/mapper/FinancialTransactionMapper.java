@@ -30,7 +30,9 @@ public class FinancialTransactionMapper {
                 transaction.isManualCategoryOverride(),
                 transaction.getVersion(),
                 transaction.getCreatedAt(),
-                transaction.getUpdatedAt()
+                transaction.getUpdatedAt(),
+                transaction.getImportId(),
+                transaction.getImportRowNumber()
         );
     }
 }

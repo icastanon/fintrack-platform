@@ -45,4 +45,9 @@ public class FinancialTransactionResponse {
     private final Instant createdAt;
 
     private final Instant updatedAt;
+
+    private final Long importId;
+
+    private final Integer importRowNumber;
+
 }
