@@ -58,7 +58,7 @@ public class FintrackUserController {
 
     @PutMapping("/{id}")
     public ResponseEntity<FintrackUserResponse> updateUser(@PathVariable Long id,
-            @Valid @RequestBody FintrackUserUpdateRequest request
+                                                           @Valid @RequestBody FintrackUserUpdateRequest request
     ) {
 
         return ResponseEntity.ok(

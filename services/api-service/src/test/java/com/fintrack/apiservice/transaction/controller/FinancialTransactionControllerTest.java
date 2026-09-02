@@ -265,7 +265,9 @@ class FinancialTransactionControllerTest {
                 false,
                 0L,
                 Instant.parse("2026-08-03T20:00:00Z"),
-                Instant.parse("2026-08-03T20:00:00Z")
+                Instant.parse("2026-08-03T20:00:00Z"),
+                1L,
+                1
         );
     }
 
@@ -355,6 +357,8 @@ class FinancialTransactionControllerTest {
                 .andExpect(jsonPath("$.content[0].accountId").value(15))
                 .andExpect(jsonPath("$.content[0].transactionType").value("EXPENSE"))
                 .andExpect(jsonPath("$.content[0].amount").value(83.42))
+                .andExpect(jsonPath("$.content[0].importId").value(1))
+                .andExpect(jsonPath("$.content[0].importRowNumber").value(1))
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(2))
                 .andExpect(jsonPath("$.totalElements").value(3))
@@ -660,7 +664,9 @@ class FinancialTransactionControllerTest {
                 true,
                 1L,
                 Instant.parse("2026-08-03T20:00:00Z"),
-                Instant.parse("2026-08-04T20:00:00Z")
+                Instant.parse("2026-08-04T20:00:00Z"),
+                null,
+                null
         );
     }
 }
